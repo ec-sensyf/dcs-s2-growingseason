@@ -1,0 +1,141 @@
+<application id="growingseason">
+  <jobTemplates>
+    <jobTemplate id="jt_echo">
+      <streamingExecutable>/application/growingseason/bin/run_echo</streamingExecutable>
+      <defaultParameters>
+	<parameter id="toyparam">FirstParam</parameter>
+      </defaultParameters>
+      <defaultJobconf>
+        <property id="mapred.task.timeout">3600000</property> <!-- in milliseconds -->
+	<property id="ciop.job.max.tasks">1</property>
+      </defaultJobconf>
+    </jobTemplate>
+    <jobTemplate id="jt_mapped_tiling">
+      <streamingExecutable>/application/growingseason/run_map_tiling</streamingExecutable>
+      <defaultParameters>
+	<parameter id="tilesize">1024</parameter>
+      </defaultParameters>
+      <defaultJobconf>
+        <property id="mapred.task.timeout">3600000</property> <!-- in milliseconds -->
+	<property id="ciop.job.max.tasks">10</property>	<!-- mapper -->
+      </defaultJobconf>
+    </jobTemplate>
+    <jobTemplate id="jt_grouping">
+      <streamingExecutable>/application/growingseason/run_grouping</streamingExecutable>
+      <defaultParameters>
+	<parameter id="tilesize">1024</parameter>
+      </defaultParameters>
+      <defaultJobconf>
+        <property id="mapred.task.timeout">3600000</property> <!-- in milliseconds -->
+	<property id="ciop.job.max.tasks">1</property>	<!-- reducer -->
+      </defaultJobconf>
+    </jobTemplate>
+    <jobTemplate id="jt_s2job">
+      <streamingExecutable>/application/growingseason/run_s2wf</streamingExecutable>
+      <defaultParameters>
+	<parameter id="mode">all</parameter>
+	<parameter id="startdate">1900-07-04</parameter>
+	<parameter id="enddate">2025-08-03</parameter>
+	<parameter id="othreshold">0.7</parameter>
+	<parameter id="ethreshold">0.9</parameter>
+      </defaultParameters>
+      <defaultJobconf>
+        <property id="mapred.task.timeout">3600000</property> <!-- in milliseconds -->
+	<property id="ciop.job.max.tasks">10</property>
+      </defaultJobconf>
+    </jobTemplate>
+    <jobTemplate id="jt_merge">
+      <streamingExecutable>/application/growingseason/merge_tiles</streamingExecutable>
+      <defaultJobconf>
+        <property id="mapred.task.timeout">3600000</property> <!-- in milliseconds -->
+	<property id="ciop.job.max.tasks">1</property>	<!-- reducer -->
+      </defaultJobconf>
+    </jobTemplate>
+  </jobTemplates>
+ <workflow id="wf_growingseason">
+    <workflowVersion>1.0</workflowVersion>
+    <node id="maptiling">
+      <job id="jt_mapped_tiling"/>
+      <sources>
+	<!-- <source refid="file:urls"> /application/growingseason/input.urls.short </source> -->
+	<source refid="file:urls"> /application/growingseason/input.urls </source>
+      </sources>
+      <parameters>
+	<!-- <parameter id="tilesize">1024</parameter> -->
+	<parameter id="tilesize">512</parameter>
+      </parameters>
+    </node>
+    <node id="grouping">
+      <job id="jt_grouping"/>
+      <sources>
+	<source refid="wf:node">maptiling</source>
+	<!--
+	<source refid="wf:node">onset_merged</source>
+	<source refid="wf:node">peak_merged</source>
+	<source refid="wf:node">end_merged</source>
+	-->
+      </sources>
+    </node>
+    <node id="onset_tiled">
+      <job id="jt_s2job"/>
+      <sources>
+	<!-- <source refid="wf:node">tiling</source> -->
+	<source refid="wf:node">grouping</source>
+      </sources>
+      <parameters>
+	<parameter id="mode">onset</parameter>
+	<parameter id="othreshold">0.7</parameter>
+      </parameters>
+    </node>
+    <node id="onset_merged">
+      <job id="jt_merge"/>
+      <sources>
+	<source refid="wf:node">onset_tiled</source>
+      </sources>
+    </node>
+    <node id="peak_tiled">
+      <job id="jt_s2job"/>
+      <sources>
+	<!-- <source refid="wf:node">tiling</source> -->
+	<source refid="wf:node">grouping</source>
+      </sources>
+      <parameters>
+	<parameter id="mode">peak</parameter>
+      </parameters>
+    </node>
+    <node id="peak_merged">
+      <job id="jt_merge"/>
+      <sources>
+	<source refid="wf:node">peak_tiled</source>
+      </sources>
+    </node>
+    <node id="end_tiled">
+      <job id="jt_s2job"/>
+      <sources>
+	<!-- <source refid="wf:node">tiling</source> -->
+	<source refid="wf:node">grouping</source>
+      </sources>
+      <parameters>
+	<parameter id="mode">end</parameter>
+	<parameter id="ethreshold">0.9</parameter>
+      </parameters>
+    </node>
+    <node id="end_merged">
+      <job id="jt_merge"/>
+      <sources>
+	<source refid="wf:node">end_tiled</source>
+      </sources>
+    </node>
+    <node id="end">
+      <job id="jt_echo"/>
+      <sources>
+	<!--
+	<source refid="wf:node">maptiling</source>
+	-->
+	<source refid="wf:node">onset_merged</source>
+	<source refid="wf:node">peak_merged</source>
+	<source refid="wf:node">end_merged</source>
+      </sources>
+    </node>
+  </workflow>
+</application>

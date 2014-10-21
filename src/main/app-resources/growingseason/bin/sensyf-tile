@@ -1,0 +1,626 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# ============================================================================
+# $Id$
+#
+# $Revision$
+# $Date$
+# $LastChangedBy$
+# ============================================================================
+# DESCRIPTION
+# ============================================================================
+# PROJECT       : SenSyF
+# COMPANY       : DEIMOS Engenharia S.A.
+# COMPONENT     : Data Processing
+# LANGUAGE      : Python
+# ----------------------------------------------------------------------------
+# PURPOSE
+#
+# This file contains the development of the sensyf-tile command.
+# The command sensyf-tile generates tiles of GeoTIFF products according to 
+# a input resolution and an optional offset pixels.
+#
+# CHANGELOG
+#
+# 0.0.2
+# - Addition of the optional flag -organize_by_tile. This flag organizes
+# the outputs by tile instead of by product.
+# - Correction of some bugs.
+# 
+# 0.0.1
+# - First release of sensyf-tile.
+# ========================================================================== #
+
+import os
+import sys
+from osgeo import gdal,gdal_array, ogr
+import glob
+
+#!
+# The regular_tile function generates tiles of the input products, with the
+# resolution given by argument, and organize the outputs by product.
+#
+# @param[in] resolution
+#      The value of the intended tile's resolution 
+# @param[in] fileList
+#      The vector containing the filepaths for all input products
+# @param[in] dstDir
+#      The path of the output directory 
+#
+# @return
+#      There are no returns for this function
+#!
+
+def regular_tile(resolution, fileList, dstDir):
+
+  for f in range(len(fileList)):
+    inputFilePath = fileList[f]
+    inputProduct = os.path.basename(inputFilePath)
+    outputDir = dstDir + '/'
+
+    inputFileName, extension = os.path.splitext(inputProduct)
+    if len(extension) == 0:
+      if os.path.isdir(inputFilePath):
+	extension = 'dir'
+      else:
+	extension = 'no_extension'
+
+    if (extension.lower() == '.tif') or (extension.lower() == '.tiff') or (extension == 'no_extension'):
+
+      inputFile = gdal.Open(inputFilePath)
+      os.makedirs(outputDir + inputFileName + '/')
+      productDir = outputDir + inputFileName + '/'
+      width = inputFile.RasterXSize
+      height = inputFile.RasterYSize
+
+      num_tiles_row = height/resolution + 1
+      num_tiles_column = width/resolution + 1
+
+      print '\nTiling ' + inputProduct + '...\n'
+      for i in range(num_tiles_row):
+	for j in range(num_tiles_column):
+	  xoff = j*resolution
+	  yoff = i*resolution
+	  xend = resolution+(j*resolution)
+	  yend = resolution+(i*resolution)
+
+	  if xend > width:
+	    xend = width
+	  if yend > height:
+	    yend = height
+
+	  transform = inputFile.GetGeoTransform()
+	
+	  xoff_geo = transform[0] + xoff*transform[1] + yoff*transform[2]
+	  yoff_geo = transform[3] + xoff*transform[4] + yoff*transform[5] 
+
+	  if extension == 'no_extension':
+	    outputFilePath = productDir + inputFileName + '_' + str(int(xoff_geo)) + '_' + str(int(yoff_geo))
+	  else:
+	    outputFilePath = productDir + inputFileName + '_' + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + extension
+	  os.system('gdal_translate -srcwin ' + str(xoff) + ' ' + str(yoff) + ' ' + str(xend-xoff) + ' ' + str(yend-yoff) + ' -of GTiff -q ' + inputFilePath + ' ' + outputFilePath)
+
+      print 'Tiling process for product ' + inputProduct + ' complete.\n'
+
+    elif extension == 'dir':
+
+      os.makedirs(outputDir + inputFileName + '/')
+      productDir = outputDir + inputFileName + '/'
+      listInDir = glob.glob(inputFilePath + "/*")
+
+      print '\nTiling ' + inputProduct + '...\n'
+      for b in range(len(listInDir)):
+	inputBandName, extension = os.path.splitext(os.path.basename(listInDir[b]))
+	if (extension.lower() == '.tif') or (extension.lower() == '.tiff'):
+
+	  inputFile = gdal.Open(listInDir[b])
+	  os.makedirs(productDir + inputBandName + '/')
+	  bandDir = productDir + inputBandName + '/'      
+
+	  width = inputFile.RasterXSize
+	  height = inputFile.RasterYSize
+
+	  num_tiles_row = height/resolution + 1
+	  num_tiles_column = width/resolution + 1
+
+	  for i in range(num_tiles_row):
+	    for j in range(num_tiles_column):
+	      xoff = j*resolution
+	      yoff = i*resolution
+	      xend = resolution+(j*resolution)
+	      yend = resolution+(i*resolution)
+
+	      if xend > width:
+		xend = width
+	      if yend > height:
+		yend = height
+
+	      transform = inputFile.GetGeoTransform()
+
+	      xoff_geo = transform[0] + xoff*transform[1] + yoff*transform[2]
+	      yoff_geo = transform[3] + xoff*transform[4] + yoff*transform[5] 
+
+	      outputFilePath = bandDir + inputBandName + '_' + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + extension
+	      os.system('gdal_translate -srcwin ' + str(xoff) + ' ' + str(yoff) + ' ' + str(xend-xoff) + ' ' + str(yend-yoff) + ' -of GTiff -q ' + listInDir[b] + ' ' + outputFilePath)
+
+      print 'Tiling process for product ' + inputProduct + ' complete.\n'
+
+    else:
+
+      print '\nError: Input product ' + inputProduct + ' got unknown format\n'
+
+  print '\nThe tiling process is complete for all input products\n'
+
+#!
+# The regular_tile_organized_by_tile function generates tiles of the input products, with the
+# resolution given by argument, and organize the outputs by tile.
+#
+# @param[in] resolution
+#      The value of the intended tile's resolution 
+# @param[in] fileList
+#      The vector containing the filepaths for all input products
+# @param[in] dstDir
+#      The path of the output directory 
+#
+# @return
+#      There are no returns for this function
+#!
+
+def regular_tile_organized_by_tile(resolution, fileList, dstDir):
+
+  for f in range(len(fileList)):
+    inputFilePath = fileList[f]
+    inputProduct = os.path.basename(inputFilePath)
+    outputDir = dstDir + '/'
+
+    inputFileName, extension = os.path.splitext(inputProduct)
+    if len(extension) == 0:
+      if os.path.isdir(inputFilePath):
+	extension = 'dir'
+      else:
+	extension = 'no_extension'
+
+    if (extension.lower() == '.tif') or (extension.lower() == '.tiff') or (extension == 'no_extension'):
+
+      inputFile = gdal.Open(inputFilePath)
+      width = inputFile.RasterXSize
+      height = inputFile.RasterYSize
+
+      num_tiles_row = height/resolution + 1
+      num_tiles_column = width/resolution + 1
+
+      print '\nTiling ' + inputProduct + '...\n'
+      for i in range(num_tiles_row):
+	for j in range(num_tiles_column):
+	  xoff = j*resolution
+	  yoff = i*resolution
+	  xend = resolution+(j*resolution)
+	  yend = resolution+(i*resolution)
+
+	  if xend > width:
+	    xend = width
+	  if yend > height:
+	    yend = height
+
+	  transform = inputFile.GetGeoTransform()
+	
+	  xoff_geo = transform[0] + xoff*transform[1] + yoff*transform[2]
+	  yoff_geo = transform[3] + xoff*transform[4] + yoff*transform[5] 
+
+	  if os.path.exists(outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/'):
+	    tileDir = outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/'
+	  else:
+	    os.makedirs(outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/')
+	    tileDir = outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/'
+
+	  if extension == 'no_extension':
+	    outputFilePath = tileDir + inputFileName
+	  else:
+	    outputFilePath = tileDir + inputFileName + extension
+	  os.system('gdal_translate -srcwin ' + str(xoff) + ' ' + str(yoff) + ' ' + str(xend-xoff) + ' ' + str(yend-yoff) + ' -of GTiff -q ' + inputFilePath + ' ' + outputFilePath)
+
+      print 'Tiling process for product ' + inputProduct + ' complete.\n'
+
+    elif extension == 'dir':
+
+      listInDir = glob.glob(inputFilePath + "/*")
+
+      print '\nTiling ' + inputProduct + '...\n'
+      for b in range(len(listInDir)):
+	inputBandName, extension = os.path.splitext(os.path.basename(listInDir[b]))
+	if (extension.lower() == '.tif') or (extension.lower() == '.tiff'):
+
+	  inputFile = gdal.Open(listInDir[b])
+	  
+	  width = inputFile.RasterXSize
+	  height = inputFile.RasterYSize
+
+	  num_tiles_row = height/resolution + 1
+	  num_tiles_column = width/resolution + 1
+
+	  for i in range(num_tiles_row):
+	    for j in range(num_tiles_column):
+	      xoff = j*resolution
+	      yoff = i*resolution
+	      xend = resolution+(j*resolution)
+	      yend = resolution+(i*resolution)
+
+	      if xend > width:
+		xend = width
+	      if yend > height:
+		yend = height
+
+	      transform = inputFile.GetGeoTransform()
+
+	      xoff_geo = transform[0] + xoff*transform[1] + yoff*transform[2]
+	      yoff_geo = transform[3] + xoff*transform[4] + yoff*transform[5] 
+
+	      if os.path.exists(outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/'):
+		tileDir = outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/'
+	      else:
+		os.makedirs(outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/')
+		tileDir = outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/'
+
+	      outputFilePath = tileDir + inputBandName + extension
+	      os.system('gdal_translate -srcwin ' + str(xoff) + ' ' + str(yoff) + ' ' + str(xend-xoff) + ' ' + str(yend-yoff) + ' -of GTiff -q ' + listInDir[b] + ' ' + outputFilePath)
+
+      print 'Tiling process for product ' + inputProduct + ' complete.\n'
+
+    else:
+
+      print '\nError: Input product ' + inputProduct + ' got unknown format\n'
+
+  print '\nThe tiling process is complete for all input products\n'
+
+#!                                                                                                                                                                                
+# The offset_tile function generates tiles of the input products with the                                                                                                         
+# resolution given by argument and with an offset of pixels also given by argument.
+# The outputs are organized by product.
+#                                                                                                                                                        
+# @param[in] resolution                                                                                                                                                            
+#      The value of the intended tile's resolution
+# @param[in] offset
+#      The number of the offset pixels that should be considered for each tile
+# @param[in] fileList                                                                                                                                                              
+#      The vector containing the filepaths for all input products                                                                                                                  
+# @param[in] dstDir                                                                                                                                                                
+#      The path of the output directory                                                                                                                                            
+#                                                                                                                                                                                  
+# @return                                                                                                                                                                          
+#      There are no returns for this function                                                                                                                                      
+#!                                       
+
+def offset_tile(resolution, offset, fileList, dstDir):
+
+  for f in range(len(fileList)):
+    inputFilePath = fileList[f]
+    inputProduct = os.path.basename(inputFilePath)
+    outputDir = dstDir + '/'
+
+    inputFileName, extension = os.path.splitext(inputProduct)
+    if len(extension) == 0:
+      if os.path.isdir(inputFilePath):
+	extension = 'dir'
+      else:
+	extension = 'no_extension'
+
+    if (extension.lower() == '.tif') or (extension.lower() == '.tiff') or (extension == 'no_extension'):
+
+      os.makedirs(outputDir + inputFileName + '/')
+      productDir = outputDir + inputFileName + '/'
+
+      print '\nTiling ' + inputProduct + '...\n'
+      vector = resize_input(inputFilePath)
+
+      for i in range(int(vector[1])):
+	for j in range(int(vector[2])):
+	  xoff = j*resolution
+	  yoff = i*resolution
+	  xend = resolution+(j*resolution)+offset
+	  yend = resolution+(i*resolution)+offset
+
+	  newinputFile = gdal.Open(vector[0])
+	  transform = newinputFile.GetGeoTransform()
+
+	  xoff_geo = transform[0] + xoff*transform[1] + yoff*transform[2]
+	  yoff_geo = transform[3] + xoff*transform[4] + yoff*transform[5] 
+
+          if extension == 'no_extension':
+	    outputFilePath = productDir + inputFileName + '_' + str(int(xoff_geo)) + '_' + str(int(yoff_geo))
+	  else:
+	    outputFilePath = productDir + inputFileName + '_' + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + extension
+	  os.system('gdal_translate -srcwin ' + str(xoff) + ' ' + str(yoff) + ' ' + str(xend-xoff) + ' ' + str(yend-yoff) + ' -of GTiff -q ' + vector[0] + ' ' + outputFilePath)
+
+      os.remove(vector[0])
+      print 'Tiling process for product ' + inputProduct + ' complete.\n'
+
+    elif extension == 'dir':
+
+      os.makedirs(outputDir + inputFileName + '/')
+      productDir = outputDir + inputFileName + '/'
+      listInDir = glob.glob(inputFilePath + "/*")
+
+      print '\nTiling ' + inputProduct + '...\n'
+      for b in range(len(listInDir)):
+	inputBandName, extension = os.path.splitext(os.path.basename(listInDir[b]))
+	if (extension.lower() == '.tif') or (extension.lower() == '.tiff'):
+
+	  os.makedirs(productDir + inputBandName + '/')
+	  bandDir = productDir + inputBandName + '/'      
+
+	  vector = resize_input(listInDir[b])
+
+	  for i in range(int(vector[1])):
+	    for j in range(int(vector[2])):
+	      xoff = j*resolution
+	      yoff = i*resolution
+	      xend = resolution+(j*resolution)+offset
+	      yend = resolution+(i*resolution)+offset
+
+	      newinputFile = gdal.Open(vector[0])
+	      transform = newinputFile.GetGeoTransform()
+
+	      xoff_geo = transform[0] + xoff*transform[1] + yoff*transform[2]
+	      yoff_geo = transform[3] + xoff*transform[4] + yoff*transform[5] 
+
+	      outputFilePath = bandDir + inputBandName + '_' + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + extension
+	      os.system('gdal_translate -srcwin ' + str(xoff) + ' ' + str(yoff) + ' ' + str(xend-xoff) + ' ' + str(yend-yoff) + ' -of GTiff -q ' + vector[0] + ' ' + outputFilePath)
+
+	  os.remove(vector[0])
+
+      print 'Tiling process for product ' + inputProduct + ' complete.\n'
+
+    else:
+
+      print '\nError: Input product ' + inputProduct + ' got unknown format\n'
+
+  print '\nThe tiling process is complete for all input products\n'
+
+#!                                                                                                                                                                                
+# The offset_tile_organized_by_tile function generates tiles of the input products with the                                                                                                         
+# resolution given by argument and with an offset of pixels also given by argument. The outputs
+# are organized by tile.
+#                                                                                                                                                        
+# @param[in] resolution                                                                                                                                                            
+#      The value of the intended tile's resolution
+# @param[in] offset
+#      The number of the offset pixels that should be considered for each tile
+# @param[in] fileList                                                                                                                                                              
+#      The vector containing the filepaths for all input products                                                                                                                  
+# @param[in] dstDir                                                                                                                                                                
+#      The path of the output directory                                                                                                                                            
+#                                                                                                                                                                                  
+# @return                                                                                                                                                                          
+#      There are no returns for this function                                                                                                                                      
+#!                                       
+
+def offset_tile_organized_by_tile(resolution, offset, fileList, dstDir):
+
+  for f in range(len(fileList)):
+    inputFilePath = fileList[f]
+    inputProduct = os.path.basename(inputFilePath)
+    outputDir = dstDir + '/'
+
+    inputFileName, extension = os.path.splitext(inputProduct)
+    if len(extension) == 0:
+      if os.path.isdir(inputFilePath):
+	extension = 'dir'
+      else:
+	extension = 'no_extension'
+
+    if (extension.lower() == '.tif') or (extension.lower() == '.tiff') or (extension == 'no_extension'):
+
+      print '\nTiling ' + inputProduct + '...\n'
+      vector = resize_input(inputFilePath)
+
+      for i in range(int(vector[1])):
+	for j in range(int(vector[2])):
+	  xoff = j*resolution
+	  yoff = i*resolution
+	  xend = resolution+(j*resolution)+offset
+	  yend = resolution+(i*resolution)+offset
+
+	  newinputFile = gdal.Open(vector[0])
+	  transform = newinputFile.GetGeoTransform()
+
+	  xoff_geo = transform[0] + xoff*transform[1] + yoff*transform[2]
+	  yoff_geo = transform[3] + xoff*transform[4] + yoff*transform[5] 
+
+	  if os.path.exists(outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/'):
+	    tileDir = outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/'
+	  else:
+	    os.makedirs(outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/')
+	    tileDir = outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/'
+
+          if extension == 'no_extension':
+	    outputFilePath = tileDir + inputFileName
+	  else:
+	    outputFilePath = tileDir + inputFileName + extension
+	  os.system('gdal_translate -srcwin ' + str(xoff) + ' ' + str(yoff) + ' ' + str(xend-xoff) + ' ' + str(yend-yoff) + ' -of GTiff -q ' + vector[0] + ' ' + outputFilePath)
+
+      os.remove(vector[0])
+      print 'Tiling process for product ' + inputProduct + ' complete.\n'
+
+    elif extension == 'dir':
+
+      listInDir = glob.glob(inputFilePath + "/*")
+
+      print '\nTiling ' + inputProduct + '...\n'
+      for b in range(len(listInDir)):
+	inputBandName, extension = os.path.splitext(os.path.basename(listInDir[b]))
+	if (extension.lower() == '.tif') or (extension.lower() == '.tiff'):
+	  
+	  vector = resize_input(listInDir[b])
+
+	  for i in range(int(vector[1])):
+	    for j in range(int(vector[2])):
+	      xoff = j*resolution
+	      yoff = i*resolution
+	      xend = resolution+(j*resolution)+offset
+	      yend = resolution+(i*resolution)+offset
+
+	      newinputFile = gdal.Open(vector[0])
+	      transform = newinputFile.GetGeoTransform()
+
+	      xoff_geo = transform[0] + xoff*transform[1] + yoff*transform[2]
+	      yoff_geo = transform[3] + xoff*transform[4] + yoff*transform[5] 
+
+	      if os.path.exists(outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/'):
+		tileDir = outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/'
+	      else:
+		os.makedirs(outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/')
+		tileDir = outputDir + str(int(xoff_geo)) + '_' + str(int(yoff_geo)) + '/'
+
+	      outputFilePath = tileDir + inputBandName + extension
+	      os.system('gdal_translate -srcwin ' + str(xoff) + ' ' + str(yoff) + ' ' + str(xend-xoff) + ' ' + str(yend-yoff) + ' -of GTiff -q ' + vector[0] + ' ' + outputFilePath)
+
+	  os.remove(vector[0])
+
+      print 'Tiling process for product ' + inputProduct + ' complete.\n'
+
+    else:
+
+      print '\nError: Input product ' + inputProduct + ' got unknown format\n'
+
+  print '\nThe tiling process is complete for all input products\n'
+
+#!                                                                                                                                                                                
+# The function resize_input is called inside offset_tile function.
+# This funtion generates a temporary data of each input GeoTIFF
+# considering the necessary offset pixels to do the tiles.
+#                                                                                                                                                                                 
+# @param[in] inputFilePath
+#      The filepath of each input GeoTIFF
+#
+# @return
+#      The funtion returns a vector containing the filepath to the temporary data product
+#      (tempFile), the number of tiles per row (num_tiles_row) and the
+#      number of tiles per column (num_tiles_column)
+#!         
+
+def resize_input(inputFilePath):
+
+  inputFile = gdal.Open(inputFilePath)
+  width = inputFile.RasterXSize
+  height = inputFile.RasterYSize
+  num_tiles_row = height/resolution + 1
+  num_tiles_column = width/resolution + 1
+
+  new_width = (num_tiles_column*resolution)+offset+1
+  new_height = (num_tiles_row*resolution)+offset+1
+
+  borderx = (new_width-width)/2
+  bordery = (new_height-height)/2
+
+  transform = inputFile.GetGeoTransform()
+  x_geo_in = transform[0] + borderx*transform[1] + bordery*transform[2]
+  y_geo_in = transform[3] + borderx*transform[4] + bordery*transform[5]
+
+  xoff_geo = transform[0]-(x_geo_in-transform[0])
+  yoff_geo = transform[3]+(transform[3]-y_geo_in)
+    
+  xend_geo = transform[0] + (width+borderx)*transform[1] + (height+bordery)*transform[2]
+  yend_geo = transform[3] + (width+borderx)*transform[4] + (height+bordery)*transform[5]
+
+  tempFile = './temp~'
+  os.system('gdal_merge.py -o ' + tempFile + ' -of GTiff -ul_lr ' + str(xoff_geo) + ' ' + str(yoff_geo) + ' ' + str(xend_geo) + ' ' + str(yend_geo) + ' -q ' + inputFilePath)
+
+  return [tempFile, num_tiles_row, num_tiles_column]
+
+
+if __name__ == '__main__':
+
+  usage = '\nUsage: sensyf-tile -r resolution [-op offset_pixels] [-organize_by_tile] src_dir dst_dir\n'
+
+  i = 1
+  r = 0
+  resolution = 0
+  op = 0
+  offset = 0
+  byTile = 0
+  directories = []
+
+  while i < len(sys.argv):
+    if sys.argv[i] == '-r':
+      r += 1
+      try:
+	resolution = int(sys.argv[i+1])
+	if resolution <= 0:
+	  sys.exit("\nError: Resolution value must be greater than zero.\n")
+      except ValueError:
+	sys.exit("\nError: Resolution value must be an integer.\n")
+      i += 1
+    elif sys.argv[i] == '-op':
+      op += 1
+      try:
+	offset = int(sys.argv[i+1])
+	if offset <= 0:
+	  sys.exit("\nError: Offset value must be greater than zero.\n")
+      except ValueError:
+	sys.exit("\nError: Offset value must be an integer.\n")
+      i += 1
+    elif sys.argv[i] == '-organize_by_tile':
+      byTile = 1
+    else:
+      directories.append(sys.argv[i])
+    i += 1
+
+  if len(sys.argv) < 5 or len(sys.argv) > 8:
+    sys.exit(usage)
+  elif len(sys.argv) == 5:
+    if r != 1:
+      sys.exit(usage)
+    elif len(directories) != 2:
+      sys.exit(usage)
+    else:
+      fileList = glob.glob(directories[0] + "/*")
+      if len(fileList) == 0:
+	sys.exit("\nError: Input directory is empty.\n")
+      else:
+	dstDir = directories[1]
+	regular_tile(resolution, fileList, dstDir)
+  elif len(sys.argv) == 6:
+    if r != 1:
+      sys.exit(usage)
+    elif byTile == 0:
+      sys.exit(usage)
+    elif len(directories) != 2:
+      sys.exit(usage)
+    else:
+      fileList = glob.glob(directories[0] + "/*")
+      if len(fileList) == 0:
+	sys.exit("\nError: Input directory is empty.\n")
+      else:
+	dstDir = directories[1]
+	regular_tile_organized_by_tile(resolution, fileList, dstDir)
+  elif len(sys.argv) == 7:
+    if r != 1:
+      sys.exit(usage)
+    elif op != 1:
+      sys.exit(usage)
+    elif len(directories) != 2:
+      sys.exit(usage)
+    else:
+      fileList = glob.glob(directories[0] + "/*")
+      if len(fileList) == 0:
+	sys.exit("\nError: Input directory is empty.\n")
+      else:
+	dstDir = directories[1]
+	offset_tile(resolution, offset, fileList, dstDir)
+  elif len(sys.argv) == 8:
+    if r != 1:
+      sys.exit(usage)
+    elif byTile == 0:
+      sys.exit(usage)
+    elif op != 1:
+      sys.exit(usage)
+    elif len(directories) != 2:
+      sys.exit(usage)
+    else:
+      fileList = glob.glob(directories[0] + "/*")
+      if len(fileList) == 0:
+	sys.exit("\nError: Input directory is empty.\n")
+      else:
+	dstDir = directories[1]
+	offset_tile_organized_by_tile(resolution, offset, fileList, dstDir)

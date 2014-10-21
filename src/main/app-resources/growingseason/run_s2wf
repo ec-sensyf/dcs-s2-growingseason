@@ -1,0 +1,221 @@
+#!/bin/bash
+
+# add a trap to exit gracefully
+function cleanExit ()
+{
+   local retval=$?
+   local msg=""
+   case "$retval" in
+     $SUCCESS)      msg="Processing successfully concluded";;
+     $ERR_NOPARAMS) msg="Output format not defined";;
+     $ERR_GDAL)     msg="Graph processing of job ${JOBNAME} failed (exit code $res)";;
+     *)             msg="Unknown error";;
+   esac
+   [ "$retval" != "0" ] && ciop-log "ERROR" "Error $retval - $msg, processing aborted" || ciop-log "INFO" "$msg"
+   exit $retval
+}
+trap cleanExit EXIT
+
+case "$USER" in
+    mapred )
+        # source the ciop functions (e.g. ciop-log)
+        # The file is /usr/lib/ciop/libexec/ciop-functions.sh
+        source ${ciop_job_include}
+        BINDIR=/application/growingseason/bin
+        ciop-log INFO "Running in cluster"
+        ;;
+    * )
+        TMPDIR=${TMPDIR-.}
+        BINDIR=./bin/
+        # create aliases for ciop routines
+        function ciop-log { echo -- CIOP-LOG "$@"; }
+        # function ciop-copy { echo -- CIOP-COPY "$@"; ln -s "$7" "$6/."; }
+        function ciop-publish { echo -- CIOP-PUBLISH "$@"; }
+        _mode=${1-onset}
+        _startdate=${2-2000-01-01}
+        _enddate=${3-2010-12-31}
+        _othreshold=${4-0.7}
+        _ethreshold=${5-0.9}
+        function ciop-getparam { echo $(eval echo '$'"_$1"); }
+        ;;
+esac
+
+interp=/usr/bin/python
+script=${BINDIR}/s2_processtile.py
+
+mode=$(ciop-getparam mode)
+# othreshold=$(ciop-getparam othreshold)
+# ethreshold=$(ciop-getparam ethreshold)
+ciop-log INFO "mode: $mode"
+# ciop-log INFO "othreshold: $othreshold"
+# ciop-log INFO "ethreshold: $ethreshold"
+
+# define the exit codes
+SUCCESS=0
+ERR_NOINPUT=1
+ERR_NOPARAMS=2
+ERR_GDAL=4
+ERR_COPY=5
+
+# create the input directory
+SRCDIR=$TMPDIR/inputs/
+mkdir -p $SRCDIR
+DSTDIR=$TMPDIR/outputs/
+mkdir -p $DSTDIR
+
+copy_inputs () {
+    while read -r inputurls; do
+         ciop-log INFO "ciop-copy -r 3 -f -U -O $SRCDIR $inputurls"
+         ciop-copy -r 3 -f -U -O $SRCDIR $inputurls
+    done
+}
+
+# mode=$(ciop-getparam mode)
+
+
+avg_fname='GS_avg.tiff'
+
+case $mode in
+    "average")
+        ciop-log ERROR "Discontinued product"
+        exit 42
+	start_date=$(ciop-getparam startdate)
+	end_date=$(ciop-getparam enddate)
+
+	ciop-log INFO "*** running average from $start_date to $end_date ***"
+
+        copy_inputs
+
+	ciop-log INFO 'averaging ...'
+	echo $interp $script average $SRCDIR $DSTDIR $avg_fname $start_date $end_date
+	$interp $script average $SRCDIR $DSTDIR $avg_fname $start_date $end_date           # > /dev/null 2>&1
+
+	ciop-publish $DSTDIR/*
+	;;
+
+    "onset")
+	start_date=$(ciop-getparam startdate)
+	end_date=$(ciop-getparam enddate)
+        othreshold=$(ciop-getparam othreshold)
+	if [ -z $othreshold ]; then othreshold=0.7; fi
+
+	ciop-log INFO "*** running onset from $start_date to $end_date threshold $othreshold ***"
+
+        while read -r inputurl; do
+            rm -rf $SRCDIR/*
+            ciop-log INFO "ciop-copy -r 3 -f -U -O $SRCDIR $inputurl"
+            ciop-copy -r 3 -f -U -O $SRCDIR $inputurl
+            for tarfile in $SRCDIR/*.tar.gz; do
+                tile=$(basename $tarfile .tar.gz)
+                avg_fname="GS_avg_${tile}.tiff"
+                tar zxf $tarfile -C $SRCDIR
+
+                mkdir -p $DSTDIR/$tile
+
+                ciop-log INFO 'averaging ...'
+                $interp $script average $SRCDIR/$tile $DSTDIR/$tile $avg_fname $start_date $end_date           # > /dev/null 2>&1
+
+                ciop-log INFO 'Finding growth season onset ...'
+                $interp $script above $SRCDIR/$tile $DSTDIR/$tile $othreshold $avg_fname        # > /dev/null 2>&1
+
+                for result in $DSTDIR/$tile/GS_onset*.tiff; do
+                    mv $result $DSTDIR/$(basename $result .tiff)_$tile.tiff
+                done
+            done
+        done
+
+	ciop-publish $DSTDIR/GS_onset*.tiff
+	;;
+
+    "peak")
+	start_date=$(ciop-getparam startdate)
+	end_date=$(ciop-getparam enddate)
+
+	ciop-log INFO "*** running peak from $start_date to $end_date ***"
+
+        while read -r inputurl; do
+            rm -rf $SRCDIR/*
+            ciop-log INFO "ciop-copy -r 3 -f -U -O $SRCDIR $inputurl"
+            ciop-copy -r 3 -f -U -O $SRCDIR $inputurl
+	    for tarfile in $SRCDIR/*.tar.gz; do
+		tile=$(basename $tarfile .tar.gz)
+		tar zxf $tarfile -C $SRCDIR
+
+		mkdir -p $DSTDIR/$tile
+
+		ciop-log INFO 'Finding growth season peak ...'
+		$interp $script peak $SRCDIR/$tile $DSTDIR/$tile                                # > /dev/null 2>&1
+
+		for result in $DSTDIR/$tile/GS_peak*.tiff; do
+		    mv $result $DSTDIR/$(basename $result .tiff)_$tile.tiff
+		done
+	    done
+	done
+
+	ciop-publish $DSTDIR/GS_peak*.tiff
+        ;;
+
+    "end")
+	start_date=$(ciop-getparam startdate)
+	end_date=$(ciop-getparam enddate)
+	ethreshold=$(ciop-getparam ethreshold)
+	if [ -z $ethreshold ]; then ethreshold=0.9; fi
+
+	ciop-log INFO "*** running end from $start_date to $end_date threshold $ethreshold ***"
+
+        while read -r inputurl; do
+            rm -rf $SRCDIR/*
+            ciop-log INFO "ciop-copy -r 3 -f -U -O $SRCDIR $inputurl"
+            ciop-copy -r 3 -f -U -O $SRCDIR $inputurl
+
+	    for tarfile in $SRCDIR/*.tar.gz; do
+		tile=$(basename $tarfile .tar.gz)
+		tar zxf $tarfile -C $SRCDIR
+
+		mkdir -p $DSTDIR/$tile
+
+		ciop-log INFO 'Finding growth season end ...'
+		$interp $script below $SRCDIR/$tile $DSTDIR/$tile $ethreshold $start_date $end_date             # > /dev/null 2>&1
+
+		for result in $DSTDIR/$tile/GS_end*.tiff; do
+		    mv $result $DSTDIR/$(basename $result .tiff)_$tile.tiff
+		done
+	    done
+	done
+
+	ciop-publish $DSTDIR/GS_end*.tiff
+	;;
+
+    "all")
+        ciop-log ERROR "Discontinued product"
+	start_date=$(ciop-getparam startdate)
+	end_date=$(ciop-getparam enddate)
+        othreshold=$(ciop-getparam othreshold)
+	ethreshold=$(ciop-getparam ethreshold)
+	if [ -z $othreshold ]; then othreshold=0.7; fi
+	if [ -z $ethreshold ]; then ethreshold=0.9; fi
+
+	ciop-log INFO "*** running all from $start_date to $end_date othreshold $othreshold ethreshold $ethreshold ***"
+
+        copy_inputs
+
+	ciop-log INFO 'averaging ...'
+	$interp $script average $SRCDIR $DSTDIR $avg_fname $start_date $end_date           # > /dev/null 2>&1
+
+	ciop-log INFO 'Finding growth season onset ...'
+	$interp $script above $SRCDIR $DSTDIR $othreshold $avg_fname                       # > /dev/null 2>&1
+
+	ciop-log INFO 'Finding growth season peak ...'
+	$interp $script peak $SRCDIR $DSTDIR                                               # > /dev/null 2>&1
+
+	ciop-log INFO 'Finding growth season end ...'
+	$interp $script below $SRCDIR $DSTDIR $ethreshold $start_date $end_date             # > /dev/null 2>&1
+
+	ciop-publish -m $DSTDIR/*
+	;;
+
+    *)
+	ciop-log WARN "unknown mode $mode"
+	exit 1
+esac
+exit 0

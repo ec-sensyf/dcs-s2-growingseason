@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# add a trap to exit gracefully
+function cleanExit ()
+{
+   local retval=$?
+   local msg=""
+   case "$retval" in
+     $SUCCESS)      msg="Processing successfully concluded";;
+     $ERR_NOPARAMS) msg="Output format not defined";;
+     $ERR_GDAL)     msg="Graph processing of job ${JOBNAME} failed (exit code $res)";;
+     *)             msg="Unknown error";;
+   esac
+   [ "$retval" != "0" ] && ciop-log "ERROR" "Error $retval - $msg, processing aborted" || ciop-log "INFO" "$msg"
+   exit $retval
+}
+trap cleanExit EXIT
+
+case "$USER" in
+    mapred )
+        # source the ciop functions (e.g. ciop-log)
+        # The file is /usr/lib/ciop/libexec/ciop-functions.sh
+        source ${ciop_job_include}
+        BINDIR=/application/growingseason/bin
+        ciop-log INFO "MERGE Running in cluster"
+        ;;
+    * )
+        TMPDIR=${TMPDIR-.}
+        BINDIR=./bin/
+        # create aliases for ciop routines
+        function ciop-log { echo -- CIOP-LOG "$@"; }
+        function ciop-copy { echo -- CIOP-COPY "$@"; ln -s "$4" "$3/."; }
+        function ciop-publish { echo -- CIOP-PUBLISH "$@"; }
+        # _mode=${1-onset}
+        # _startdate=${2-2000-01-01}
+        # _enddate=${3-2010-12-31}
+        # _othreshold=${4-0.7}
+        # _ethreshold=${5-0.9}
+        function ciop-getparam { echo $(eval echo '$'"_$1"); }
+        ;;
+esac
+
+# create the input directory
+SRCDIR=$TMPDIR/inputs/
+mkdir -p $SRCDIR
+DSTDIR=$TMPDIR/outputs/
+mkdir -p $DSTDIR
+
+copy_inputs () {
+    while read -r inputurls; do
+         ciop-log INFO "ciop-copy -f -o $SRCDIR $inputurls"
+         ciop-copy -f -o $SRCDIR $inputurls
+    done
+}
+
+copy_inputs
+
+type=$(ls -1 $SRCDIR | head -1 | cut -d_ -f2)
+for year in $(ls -1 $SRCDIR | cut -d_ -f3 | sort -u); do
+    ofile=$DSTDIR/GS_${type}_${year}.tiff
+    ciop-log INFO "MERGE merging Growth Season $type result"
+    gdal_merge.py $SRCDIR/GS_${type}_${year}_*.tiff -o $ofile
+done
+
+ls -lh $DSTDIR
+ciop-publish -m $DSTDIR/GS_${type}_*.tiff
+
+ciop-log INFO "MERGE Done with Growth Season $type"
+
+cleanExit 0

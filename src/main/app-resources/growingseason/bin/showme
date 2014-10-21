@@ -1,0 +1,16 @@
+#!/bin/bash
+
+
+source ${ciop_job_include}
+
+echo "INFO" "$ciop_job_include"
+
+toyparam=$(ciop-param toyparam)
+toy_parameter=$(ciop-param toy-parameter)
+
+echo "INFO" "toyparam:" $toyparam
+echo "INFO" "toy-parameter:" $toy_parameter
+
+env
+
+exit 0

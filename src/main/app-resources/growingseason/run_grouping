@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# add a trap to exit gracefully
+function cleanExit ()
+{
+   local retval=$?
+   local msg=""
+   case "$retval" in
+     $SUCCESS)      msg="Processing successfully concluded";;
+     $ERR_NOPARAMS) msg="Outout format not defined";;
+     $ERR_GDAL)     msg="Graph processing of job ${JOBNAME} failed (exit code $res)";;
+     *)             msg="Unknown error";;
+   esac
+   [ "$retval" != "0" ] && ciop-log "ERROR" "Error $retval - $msg, processing aborted" || ciop-log "INFO" "$msg"
+   exit $retval
+}
+trap cleanExit EXIT
+
+case "$USER" in
+    mapred )
+        # source the ciop functions (e.g. ciop-log)
+        # The file is /usr/lib/ciop/libexec/ciop-functions.sh
+        source ${ciop_job_include}
+        BINDIR=/application/growingseason/bin
+        ciop-log INFO "Running in cluster"
+        ;;
+    * )
+        # create aliases for ciop routines
+        TMPDIR=${TMPDIR-$(pwd)}
+        BINDIR=.
+        function ciop-log { echo -- CIOP-LOG "$@"; }
+        # function ciop-copy { echo -- CIOP-COPY "$@"; ln -s "$6" "$5/."; }
+        function ciop-publish { echo -- CIOP-PUBLISH "$@"; }
+        _mode=${1-average}
+        _startdate=${2-2000-01-01}
+        _enddate=${3-2010-12-31}
+        _othreshold=${4-0.7}
+        _ethreshold=${5-0.9}
+        function ciop-getparam { echo $(eval echo '$'"_$1"); }
+        ;;
+esac
+
+interp=/usr/bin/python
+script=${BINDIR}/toy_group.py
+
+mode=$(ciop-getparam mode)
+# othreshold=$(ciop-getparam othreshold)
+# ethreshold=$(ciop-getparam ethreshold)
+# ciop-log INFO "mode: $mode"
+# ciop-log INFO "othreshold: $othreshold"
+# ciop-log INFO "ethreshold: $ethreshold"
+
+# define the exit codes
+SUCCESS=0
+ERR_NOINPUT=1
+ERR_NOPARAMS=2
+ERR_GDAL=4
+ERR_COPY=5
+
+# create the input directory
+SRCDIR=$TMPDIR/inputs/
+mkdir -p $SRCDIR
+rm -rf $SRCDIR/*
+DSTDIR=$TMPDIR/outputs/
+mkdir -p $DSTDIR
+rm -rf $DSTDIR/*
+
+ciop-log INFO "*** running grouping ***"
+
+cd $SRCDIR
+while read -r url; do
+    ciop-copy -r 3 -f -U -O $TMPDIR $url;
+    tar zxvf $TMPDIR/$(basename $url);
+done
+
+
+# python toy_tile.py srcdir dstdir
+ciop-log INFO 'grouping  ...'
+# echo $interp $script $DSTDIR
+# $interp $script $DSTDIR                 # > /dev/null 2>&1
+
+for tile in *; do
+    tar zcvf $DSTDIR/$tile.tar.gz $tile
+    # rm -rf $tile
+done
+
+ciop-publish $DSTDIR/*
+
+exit 0
