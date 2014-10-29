@@ -18,7 +18,7 @@ gdal.UseExceptions()
 mask_fname = 'maske_sval.tiff'
 
 permadir = '/application/growingseason/permanent'
-#permadir = '.'
+#permadir = './permanent'
 
 
 def create_remapped_mask(src_fn, mask_fn, remap_mask_fn):
@@ -230,7 +230,7 @@ def above(datadir, outputdir, thr_scale, avg_fname):
         if ds.GetGeoTransform() != tran \
            or data.shape != mask.shape:
                 raise ValueError, "Bogus file: " + os.path.join(datadir, fn)
-        print "Read file " + fn
+        # print "Read file " + fn
         if lastdata is None:
             # First dataset of year
             # onset[np.where(data > thr)] = dnum
@@ -304,7 +304,7 @@ def peak(datadir, outputdir):
         if ds.GetGeoTransform() != tran \
            or data.shape != mask.shape:
                 raise ValueError, "Bogus file: peak_average.tiff"
-        print "Read file " + fn
+        # print "Read file " + fn
         if peakdata is None:
             # First dataset of year
             peak = np.where(mask == 1, dnum, mask)
@@ -324,7 +324,8 @@ def peak(datadir, outputdir):
     return 0
 
 def below(datadir, outputdir, thr_scale, date_start, date_end):
-    '''Prototype functionality for finding first day below threshold in SenSyF S2 Service.
+    '''Prototype functionality for finding first day below threshold
+    (after peak) in SenSyF S2 Service.
 
     datadir -- directory containing input files
     outputdir -- directory wherein to place the result files
@@ -344,7 +345,7 @@ def below(datadir, outputdir, thr_scale, date_start, date_end):
     # ds, de = dts.tm_mday, dte.tm_mday
     dstart, dend = dts.tm_yday, dte.tm_yday
 
-    pat = re.compile(r'^ndvi(\d+)_(\d+)')
+    pat = re.compile(r'^ndvi(\d+)_(\d+).tiff')
     for filename in os.listdir(datadir):
         m = pat.search(filename)
         if m: break
@@ -382,6 +383,7 @@ def below(datadir, outputdir, thr_scale, date_start, date_end):
             nsets = 0
             gs_end = mask.copy()
             lastyear = year
+            averaging = 1
 
         if dnum < dstart: continue
 
