@@ -187,7 +187,7 @@ case $mode in
 	;;
 
     "all")
-        ciop-log ERROR "Discontinued product"
+        # ciop-log ERROR "Discontinued product"
 	start_date=$(ciop-getparam startdate)
 	end_date=$(ciop-getparam enddate)
         othreshold=$(ciop-getparam othreshold)
@@ -197,21 +197,46 @@ case $mode in
 
 	ciop-log INFO "*** running all from $start_date to $end_date othreshold $othreshold ethreshold $ethreshold ***"
 
-        copy_inputs
+        # copy_inputs
+        while read -r inputurl; do
+            rm -rf $SRCDIR/*
+            ciop-log INFO "ciop-copy -r 3 -f -U -O $SRCDIR $inputurl"
+            ciop-copy -r 3 -f -U -O $SRCDIR $inputurl
 
-	ciop-log INFO 'averaging ...'
-	$interp $script average $SRCDIR $DSTDIR $avg_fname $start_date $end_date           # > /dev/null 2>&1
+	    for tarfile in $SRCDIR/*.tar.gz; do
+		tile=$(basename $tarfile .tar.gz)
+		tar zxf $tarfile -C $SRCDIR
 
-	ciop-log INFO 'Finding growth season onset ...'
-	$interp $script above $SRCDIR $DSTDIR $othreshold $avg_fname                       # > /dev/null 2>&1
+		mkdir -p $DSTDIR/$tile
 
-	ciop-log INFO 'Finding growth season peak ...'
-	$interp $script peak $SRCDIR $DSTDIR                                               # > /dev/null 2>&1
+                ciop-log INFO 'averaging ...'
+                $interp $script average $SRCDIR/$tile $DSTDIR/$tile $avg_fname $start_date $end_date           # > /dev/null 2>&1
 
-	ciop-log INFO 'Finding growth season end ...'
-	$interp $script below $SRCDIR $DSTDIR $ethreshold $start_date $end_date             # > /dev/null 2>&1
+                ciop-log INFO 'Finding growth season onset ...'
+                $interp $script above $SRCDIR/$tile $DSTDIR/$tile $othreshold $avg_fname        # > /dev/null 2>&1
 
-	ciop-publish -m $DSTDIR/*
+                for result in $DSTDIR/$tile/GS_onset*.tiff; do
+                    mv $result $DSTDIR/$(basename $result .tiff)_$tile.tiff
+                done
+
+
+		ciop-log INFO 'Finding growth season peak ...'
+		$interp $script peak $SRCDIR/$tile $DSTDIR/$tile                                # > /dev/null 2>&1
+
+		for result in $DSTDIR/$tile/GS_peak*.tiff; do
+		    mv $result $DSTDIR/$(basename $result .tiff)_$tile.tiff
+		done
+
+		ciop-log INFO 'Finding growth season end ...'
+		$interp $script below $SRCDIR/$tile $DSTDIR/$tile $ethreshold $start_date $end_date             # > /dev/null 2>&1
+
+		for result in $DSTDIR/$tile/GS_end*.tiff; do
+		    mv $result $DSTDIR/$(basename $result .tiff)_$tile.tiff
+		done
+	    done
+	done
+
+	ciop-publish $DSTDIR/GS_onset*.tiff $DSTDIR/GS_peak*.tiff $DSTDIR/GS_end*.tiff
 	;;
 
     *)
