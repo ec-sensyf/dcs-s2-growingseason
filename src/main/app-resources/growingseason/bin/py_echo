@@ -1,0 +1,27 @@
+#!/opt/anaconda/bin/python
+
+from os import environ
+
+if environ['USER'] == 'mapred':
+    import cioppy
+    ciop = cioppy.Cioppy()
+    def LOGINFO(x): ciop.log("INFO", "Cp/ECHO:" + x)
+    LOGINFO(" Using Cioppy tools")
+else:
+    def LOGINFO(x): print("[INFO]ECHO:" + x)
+
+import sys
+LOGINFO("args: " + " ".join(sys.argv))
+
+for k, v in environ.iteritems():
+    # ciop.log(INFO, "ECHO ENV {} => {}".format(k, v))
+    LOGINFO("ENV {0} => {1}".format(k, v))
+
+# for param in ["toyparam", "toy-parameter"]:
+for param in ["mode", "startdate", "enddate", "othreshold", "ethreshold"]:
+    LOGINFO("{0}: {1}".format(param, ciop.getparam(param)))
+
+
+for line in sys.stdin:
+    LOGINFO("input line: " + line)
+
