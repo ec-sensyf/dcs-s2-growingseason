@@ -1,10 +1,17 @@
-#!/usr/bin/python
+#!/opt/anaconda/bin/python
 import os
 import os.path
+# from os import environ
+env = os.environ
+import sys
+import shutil
+from shutil import rmtree, copyfile
+import tarfile
 import re
 import datetime as dt
 import time
 import numpy as np
+from glob import glob
 
 from osgeo import gdal, osr
 from osgeo.gdalconst import *
@@ -20,9 +27,74 @@ mask_fname = 'maske_sval.tiff'
 permadir = '/application/growingseason/permanent'
 #permadir = './permanent'
 
+if env['USER'] == 'mapred':
+    import cioppy
+    ciop = cioppy.Cioppy()
+    def LOGINFO(x): ciop.log("INFO", "Cp/ECHO:" + x)
+    LOGINFO(" Using Cioppy tools")
+    copy = lambda pths, dst: ciop.copy(pths, dst, extract=False)
+    getparam = ciop.getparam
+    publish = ciop.publish
+else:
+    def LOGINFO(x): print("[INFO]ECHO:" + x)
+    params = {
+        'mode' : 'all',
+        'startdate' : '2000-07-02',
+        'enddate'   : '2525-08-05',
+        'othreshold': 0.5,
+        'ethreshold': 0.7
+    }
+    def getparam(x): return params[x]
+    def copy(pths, dst): 
+        if isinstance(pths, basestring):
+            pths = [pths]
+        for pth in pths:
+            shutil.copy(pth, dst)
+    def publish(pths, **kwargs):
+        if 'recursive' in kwargs:
+            pths = [os.path.join(pths, x) for x in os.listdir(pths)]
+        if isinstance(pths, basestring):
+            pths = [pths]
+        for pth in pths:
+            LOGINFO("Publishing path " + pth)
+
+def copy_and_unpack(url, dst):
+    fname = os.path.basename(url)
+    path = os.path.join(dst, fname)
+    copy(url, dst)
+    tf = tarfile.open(path, 'r')
+    tile = tf.next().name       # Subdir is first in tarfile
+    tf.extractall(path=dst)
+    tf.close()
+    os.unlink(path)
+    return tile
+
+
+def safe_getparam(x, default):
+    try:
+        rval = getparam(x)
+    except:
+        return default
+    return rval
+
+def mkdir_p(path):
+    try:
+        junk = os.listdir(path)
+    except OSError:
+        head, tail = os.path.split(path)
+        mkdir_p(head)
+        os.mkdir(path)
+
+def cleandir(dir):
+    for name in os.listdir(dir):
+        pth = os.path.join(dir, name)
+        try:
+            shutil.rmtree(pth)
+        except OSError:
+            os.unlink(pth)
+
 
 def create_remapped_mask(src_fn, mask_fn, remap_mask_fn):
-    from shutil import copyfile
 
     copyfile(src_fn, remap_mask_fn)
     try:
@@ -94,7 +166,7 @@ def average(datadir, outputdir, avg_fname, date_start, date_end):
         xy = np.where(ddd > 0)
         data[xy] += ddd[xy]
         ndat[xy] += 1
-        print "read file " + filename
+        LOGINFO("read file " + filename)
 
     avg = np.where(mask == 1, data/ndat, np.nan)
 
@@ -136,7 +208,7 @@ def save_product(ds, outputdir, data, year, mask, fmt, prod_name, prod_descripti
     # hdr['band names'] = ['Growth season onset']
 
     # dh.writeHdr(prod_name + '.hdr', hdr)
-    print 'wrote', prod_name
+    LOGINFO("wrote " + prod_name)
 
 def save_onset(ds, outputdir, onset, year, mask=None, fmt='GTiff'):
     GSO_name = os.path.join(outputdir, 'GS_onset_{0}'.format(2000+year))
@@ -192,6 +264,8 @@ def above(datadir, outputdir, thr_scale, avg_fname):
 
     # hdr, avg_peak = GS_avgpeak(datadir)
     ds, avg_peak = GS_avgpeak(os.path.join(outputdir, avg_fname))
+
+    LOGINFO("Got avg_peak with shape {0} and dtype {1}".format(avg_peak.shape, avg_peak.dtype))
     thr = thr_scale * avg_peak
 
     if ds.GetGeoTransform() != tran \
@@ -420,8 +494,68 @@ def usage(msg):
 
     raise RuntimeError(msg)
 
+def cluster_main(args):
 
-def main(args):
+    avg_fname = 'GS_avg.tiff'
+    mode       = safe_getparam('mode', 'all')
+    if mode != 'all': raise ValueError("Only mode 'all' implemented for now")
+
+    o_startdate = safe_getparam('startdate-onset', '1900-07-04')
+    o_enddate   = safe_getparam('enddate-onset',   '2500-08-03')
+    e_startdate = safe_getparam('startdate-end',   '1925-07-20')
+    e_enddate   = safe_getparam('enddate-end',     '2525-08-09')
+    othreshold = float(safe_getparam('othreshold', 0.7))
+    ethreshold = float(safe_getparam('ethreshold', 0.9))
+
+    LOGINFO("Mode: " + mode)
+
+    if 'TMPDIR' not in env: env['TMPDIR'] = '/var/tmp'
+    srcdir = os.path.join(env['TMPDIR'], 'innpputs')
+    dstdir = os.path.join(env['TMPDIR'], 'outputs')
+    mkdir_p(srcdir)
+    mkdir_p(dstdir)
+
+    tiles = []
+    for line in sys.stdin:
+        cleandir(srcdir)
+        tile = copy_and_unpack(line.rstrip(), srcdir)
+        src_tiledir = os.path.join(srcdir, tile)
+        dst_tiledir = os.path.join(dstdir, tile)
+        mkdir_p(os.path.join(dst_tiledir))
+
+        # Onset in two parts: compute average, then find when threshold is exceeded
+        LOGINFO("Computing ONSET for tile " + tile)
+        LOGINFO("Using dates from {0} to {1}".format(o_startdate, o_enddate))
+        status = average(src_tiledir, dst_tiledir, avg_fname, o_startdate, o_enddate)
+        status = above(src_tiledir, dst_tiledir, othreshold, avg_fname)
+
+        # Peak
+        LOGINFO("Computing PEAK for tile " + tile)
+        status = peak(src_tiledir, dst_tiledir)
+
+        # End
+        LOGINFO("Computing END for tile " + tile)
+        LOGINFO("Using dates from {0} to {1}".format(e_startdate, e_enddate))
+        status = below(src_tiledir, dst_tiledir, ethreshold, e_startdate, e_enddate)
+
+        # Rename results
+        for name in os.listdir(dst_tiledir):
+            if not re.match('GS_(onset|peak|end)_.*\.tiff', name): continue
+
+            old = os.path.join(dst_tiledir, name)
+            new = os.path.join(dstdir, os.path.splitext(name)[0] + '_' + tile + '.tiff')
+
+            os.rename(old, new)
+        rmtree(dst_tiledir)
+
+	tiles.append(tile)
+	LOGINFO("Completed results for tile " + tile)
+
+    LOGINFO("Publishing results for tiles " + ", ".join(tiles))
+    # publish(dstdir, recursive=True)
+    publish(glob(dstdir + '/*.tiff'))
+
+def cmdline_main(args):
 
     thr_scale = 0.7
 
@@ -459,6 +593,18 @@ def main(args):
         usage('Incorrect number of arguments')
 
 if __name__ == '__main__':
-    import sys
-    main(sys.argv[1:])
+    cluster_main(sys.argv[1:])
+
+    sys.exit(0)
+
+    if env['USER'] != 'mapred':
+        # Running from command-line
+        cmdline_main(sys.argv[1:])
+
+    else:
+        # Running in cluster
+        cluster_main(sys.argv[1:])
+
+    sys.exit(0)
+
 
