@@ -65,7 +65,7 @@
       </defaultJobconf>
     </jobTemplate>
     <jobTemplate id="jt_merge">
-      <streamingExecutable>/application/growingseason/merge_tiles</streamingExecutable>
+      <streamingExecutable>/application/growingseason/bin/merge_tiles</streamingExecutable>
       <defaultJobconf>
         <property id="mapred.task.timeout">3600000</property> <!-- in milliseconds -->
 	<property id="ciop.job.max.tasks">1</property>	<!-- reducer -->
