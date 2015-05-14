@@ -71,6 +71,13 @@
 	<property id="ciop.job.max.tasks">1</property>	<!-- reducer -->
       </defaultJobconf>
     </jobTemplate>
+    <jobTemplate id="jt_colorize">
+      <streamingExecutable>/application/growingseason/bin/colorize.py</streamingExecutable>
+      <defaultJobconf>
+        <property id="mapred.task.timeout">3600000</property> <!-- in milliseconds -->
+	<property id="ciop.job.max.tasks">10</property>	<!-- reducer -->
+      </defaultJobconf>
+    </jobTemplate>
   </jobTemplates>
  <workflow id="wf_growingseason">
     <workflowVersion>1.0</workflowVersion>
@@ -109,10 +116,16 @@
 	<source refid="wf:node">process_tiled</source>
       </sources>
     </node>
+    <node id="colorize">
+      <job id="jt_colorize"/>
+      <sources>
+	<source refid="wf:node">merge</source>
+      </sources>
+    </node>
     <node id="end">
       <job id="jt_echo"/>
       <sources>
-	<source refid="wf:node">end_merged</source>
+	<source refid="wf:node">colorize</source>
       </sources>
       <parameters>
 	<parameter id="toy-parameter">SecondParamOverridden</parameter>
