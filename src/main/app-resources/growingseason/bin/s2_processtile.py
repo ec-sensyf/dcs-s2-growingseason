@@ -93,6 +93,15 @@ def cleandir(dir):
         except OSError:
             os.unlink(pth)
 
+def encode(idays):
+  odays = np.minimum(np.maximum(0, idays - 100), 199).astype(np.uint8)
+
+  # Values 370 and above (mask values) map to [200, ...)
+  ii = np.where(idays >= 370)
+  odays[ii] = idays[ii] - 170
+
+  return odays
+
 
 def create_remapped_mask(src_fn, mask_fn, remap_mask_fn):
 
@@ -187,7 +196,7 @@ def save_product(ds, outputdir, data, year, mask, fmt, prod_name, prod_descripti
     if fmt == 'GTiff': prod_name += '.tiff'
     elif fmt == 'ENVI': prod_name += '.dat'
     else: raise RuntimeError('Format ' + fmt + ' to be added')
-    out = driver.Create(prod_name, xsize, ysize, 1, GDT_Int16)
+    out = driver.Create(prod_name, xsize, ysize, 1, GDT_Byte)
 
     if mask is not None:
         data = np.where(mask == 1, data, mask)
@@ -197,7 +206,7 @@ def save_product(ds, outputdir, data, year, mask, fmt, prod_name, prod_descripti
     # out.SetMetadataItem('band_names', prod_description)
     rb = out.GetRasterBand(1)
     rb.SetDescription(prod_description)
-    rb.WriteArray(data)
+    rb.WriteArray(encode(data))
     out = None                  # Close and flush file
 
     # ff = file(prod_name + '.dat', 'w')
