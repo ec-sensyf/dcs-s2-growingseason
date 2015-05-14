@@ -271,7 +271,7 @@
       <Entry c1="0" c2="0" c3="0" c4="255" />
     </ColorTable>
     <SimpleSource>
-      <SourceFilename relativeToVRT="1">GSI_end_2000.tiff</SourceFilename>
+      <SourceFilename relativeToVRT="0">tmp.tiff</SourceFilename>
       <SourceBand>1</SourceBand>
       <SourceProperties RasterXSize="1900" RasterYSize="1856" DataType="Byte" BlockXSize="1900" BlockYSize="4" />
       <SrcRect xOff="0" yOff="0" xSize="1900" ySize="1856" />
