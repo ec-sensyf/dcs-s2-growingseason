@@ -1,5 +1,6 @@
 #!/opt/anaconda/bin/python
 
+import sys
 import os
 import re
 from osgeo import gdal, osr
@@ -100,7 +101,6 @@ def cmdline_main(args):
 if __name__ == '__main__':
 
     if env['USER'] != 'mapred':
-        import sys
         # Running from command-line
         cmdline_main(sys.argv[1:])
 
