@@ -3,6 +3,7 @@
 import sys
 import os
 import re
+from glob import glob
 from osgeo import gdal, osr
 from osgeo.gdalconst import *
 
