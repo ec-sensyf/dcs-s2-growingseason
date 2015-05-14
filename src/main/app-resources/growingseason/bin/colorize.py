@@ -15,7 +15,7 @@ if env['USER'] == 'mapred':
     LOGINFO(" Using Cioppy tools")
     copy = lambda pths, dst: ciop.copy(pths, dst, extract=False)
     # getparam = ciop.getparam
-    publish = ciop.publish
+    publish = lambda x: ciop.publish(x, metalink=True)
     permadir = '/application/growingseason/permanent/'
 else:
     def LOGINFO(x): print("[INFO]ECHO:" + x)
@@ -42,6 +42,7 @@ else:
     permadir = env['HOME'] + '/src/SenSyF/s2/growingseason/permanent/'
 
 def colorize(fname, dstdir):
+    LOGINFO("Colorizing " + fname)
     try:
         product_type = re.match(r'GS_(\w+)_(\d{4})\.tiff', fname).groups()[0]
     except AttributeError:
@@ -81,6 +82,7 @@ def cluster_main():
 
         copy(url, srcdir)
         colorize(fname, dstdir)
+    publish(glob(dstdir + '/*.tiff'))
 
 def cmdline_main(args):
     for fname in args:

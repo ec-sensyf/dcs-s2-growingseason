@@ -494,7 +494,7 @@ def usage(msg):
 
     raise RuntimeError(msg)
 
-def cluster_main(args):
+def cluster_main():
 
     avg_fname = 'GS_avg.tiff'
     mode       = safe_getparam('mode', 'all')
@@ -593,9 +593,6 @@ def cmdline_main(args):
         usage('Incorrect number of arguments')
 
 if __name__ == '__main__':
-    cluster_main(sys.argv[1:])
-
-    sys.exit(0)
 
     if env['USER'] != 'mapred':
         # Running from command-line
@@ -603,7 +600,7 @@ if __name__ == '__main__':
 
     else:
         # Running in cluster
-        cluster_main(sys.argv[1:])
+        cluster_main()
 
     sys.exit(0)
 
