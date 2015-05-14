@@ -61,7 +61,7 @@ for type in $(ls -1 $SRCDIR | cut -d_ -f2 | sort -u); do
         ciop-log INFO "MERGE merging Growth Season $type result"
         gdal_merge.py $SRCDIR/GS_${type}_${year}_*.tiff -o $ofile
     done
-    ciop-publish -m $DSTDIR/GS_${type}_*.tiff
+    ciop-publish $DSTDIR/GS_${type}_*.tiff
     ciop-log INFO "MERGE Done with Growth Season $type"
 done
 
