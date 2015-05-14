@@ -17,7 +17,12 @@ if env['USER'] == 'mapred':
     LOGINFO(" Using Cioppy tools")
     copy = lambda pths, dst: ciop.copy(pths, dst, extract=False)
     # getparam = ciop.getparam
-    publish = lambda x: ciop.publish(x, metalink=True)
+    def publish(pths):
+        if isinstance(pths, basestring):
+            pths = [pths]
+        for pth in pths:
+            LOGINFO("Publishing path " + pth)
+            ciop.publish(pth, metalink=True)
     permadir = '/application/growingseason/permanent/'
 else:
     def LOGINFO(x): print("[INFO]ECHO:" + x)
