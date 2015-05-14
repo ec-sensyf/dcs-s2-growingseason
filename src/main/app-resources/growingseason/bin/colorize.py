@@ -41,6 +41,14 @@ else:
             LOGINFO("Publishing path " + pth)
     permadir = env['HOME'] + '/src/SenSyF/s2/growingseason/permanent/'
 
+def mkdir_p(path):
+    try:
+        junk = os.listdir(path)
+    except OSError:
+        head, tail = os.path.split(path)
+        mkdir_p(head)
+        os.mkdir(path)
+
 def colorize(fname, dstdir):
     LOGINFO("Colorizing " + fname)
     try:
