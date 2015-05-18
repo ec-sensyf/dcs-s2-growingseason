@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# define the exit codes
+SUCCESS=0
+ERR_NOINPUT=1
+ERR_NOPARAMS=2
+ERR_GDAL=4
+ERR_COPY=5
+
 # add a trap to exit gracefully
 function cleanExit ()
 {
@@ -25,13 +32,26 @@ case "$USER" in
         source ${ciop_job_include}
         BINDIR=/application/growingseason/bin
         ;;
+        loginfo () { ciop-log INFO "$@"; }
+        copy () {
+            url="$1"
+            dst="$2"
+            loginfo "Copying <$src> to <$dst>"
+            ciop-copy -r 3 -f -O $dst $url
+        }
     * )
         # create aliases for ciop routines
         TMPDIR=${TMPDIR-.}
         BINDIR=./bin/
-        function ciop-log { echo -- CIOP-LOG "$@"; }
-        # function ciop-copy { echo -- CIOP-COPY "$@"; ln -s "$6" "$5/."; }
+        # function ciop-log { echo -- CIOP-LOG "$@"; }
+        function loginfo () { echo "INFO: $@"; }
         function ciop-publish { echo -- CIOP-PUBLISH "$@"; }
+        copy () {
+            url="$1"
+            dst="$2"
+            loginfo "Copying (linking) <$src> to <$dst>"
+            ln -s "$url" "$dst/."
+        }
 
         # _mode=${1-average}
         # _startdate=${2-2000-01-01}
@@ -55,16 +75,9 @@ script=${BINDIR}/sensyf-tile
 # ciop-log INFO "ethreshold: $ethreshold"
 
 tilesize=$(ciop-getparam tilesize)
-ciop-log INFO "tilesize: $tilesize"
+loginfo "tilesize: $tilesize"
 
 FLAGS="-r $tilesize -organize_by_tile "
-
-# define the exit codes
-SUCCESS=0
-ERR_NOINPUT=1
-ERR_NOPARAMS=2
-ERR_GDAL=4
-ERR_COPY=5
 
 # create the input directory
 SRCDIR=$TMPDIR/inputs/
@@ -77,20 +90,19 @@ rm -rf $DSTDIR/*
 
 copy_inputs () {
     while read -r inputurl; do
-         ciop-log INFO "ciop-copy -r 3 -f -O $SRCDIR $inputurl"
-         ciop-copy -r 3 -f -O $SRCDIR $inputurl
+         copy $inputurl $SRCDIR || exit $ERR_COPY
     done
 }
 
 # mode=$(ciop-getparam mode)
 
 
-ciop-log INFO "*** running tiling ***"
+loginfo "*** running tiling ***"
 
 copy_inputs
 
 # python toy_tile.py srcdir dstdir
-ciop-log INFO 'tiling  ...'
+loginfo 'tiling  ...'
 echo $interp $script $FLAGS $SRCDIR $DSTDIR
 $interp $script $FLAGS $SRCDIR $DSTDIR                 # > /dev/null 2>&1
 
