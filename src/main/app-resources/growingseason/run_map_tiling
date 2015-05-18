@@ -31,7 +31,6 @@ case "$USER" in
         # The file is /usr/lib/ciop/libexec/ciop-functions.sh
         source ${ciop_job_include}
         BINDIR=/application/growingseason/bin
-        ;;
         loginfo () { ciop-log INFO "$@"; }
         copy () {
             url="$1"
@@ -39,6 +38,7 @@ case "$USER" in
             loginfo "Copying <$src> to <$dst>"
             ciop-copy -r 3 -f -O $dst $url
         }
+        ;;
     * )
         # create aliases for ciop routines
         TMPDIR=${TMPDIR-.}
