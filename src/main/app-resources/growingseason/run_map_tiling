@@ -35,7 +35,7 @@ case "$USER" in
         copy () {
             url="$1"
             dst="$2"
-            loginfo "Copying <$src> to <$dst>"
+            loginfo "Copying <$url> to <$dst>"
             ciop-copy -r 3 -f -O $dst $url
         }
         ;;
@@ -49,7 +49,7 @@ case "$USER" in
         copy () {
             url="$1"
             dst="$2"
-            loginfo "Copying (linking) <$src> to <$dst>"
+            loginfo "Copying (linking) <$url> to <$dst>"
             ln -s "$url" "$dst/."
         }
 
