@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# define the exit codes
+SUCCESS=0
+ERR_NOINPUT=1
+ERR_NOPARAMS=2
+ERR_GDAL=4
+ERR_COPY=5
+
 # add a trap to exit gracefully
 function cleanExit ()
 {
@@ -11,7 +18,7 @@ function cleanExit ()
      $ERR_GDAL)     msg="Graph processing of job ${JOBNAME} failed (exit code $res)";;
      *)             msg="Unknown error";;
    esac
-   [ "$retval" != "0" ] && ciop-log "ERROR" "Error $retval - $msg, processing aborted" || ciop-log "INFO" "$msg"
+   [ "$retval" != "0" ] && logerror "Error $retval - $msg, processing aborted" || loginfo "$msg"
    exit $retval
 }
 trap cleanExit EXIT
@@ -22,21 +29,29 @@ case "$USER" in
         # The file is /usr/lib/ciop/libexec/ciop-functions.sh
         source ${ciop_job_include}
         BINDIR=/application/growingseason/bin
-        ciop-log INFO "MERGE Running in cluster"
+        function loginfo () { ciop-log INFO "$@"; }
+        function logerror () { ciop-log ERROR "$@"; }
+        function copy () {
+            url="$1"
+            dst="$2"
+            loginfo "Copying <$url> to <$dst>"
+            ciop-copy -r 3 -f -O $dst $url
+        }
+        loginfo "MERGE Running in cluster"
         ;;
     * )
+        # create aliases for ciop routines
         TMPDIR=${TMPDIR-.}
         BINDIR=./bin/
-        # create aliases for ciop routines
-        function ciop-log { echo -- CIOP-LOG "$@"; }
-        function ciop-copy { echo -- CIOP-COPY "$@"; ln -s "$4" "$3/."; }
+        function loginfo () { echo "INFO: $@"; }
+        function logerror () { echo " ERROR: $@"; }
         function ciop-publish { echo -- CIOP-PUBLISH "$@"; }
-        # _mode=${1-onset}
-        # _startdate=${2-2000-01-01}
-        # _enddate=${3-2010-12-31}
-        # _othreshold=${4-0.7}
-        # _ethreshold=${5-0.9}
-        function ciop-getparam { echo $(eval echo '$'"_$1"); }
+        copy () {
+            url="$1"
+            dst="$2"
+            loginfo "Copying (linking) <$url> to <$dst>"
+            ln -s "$url" "$dst/."
+        }
         ;;
 esac
 
@@ -47,9 +62,8 @@ DSTDIR=$TMPDIR/outputs/
 mkdir -p $DSTDIR
 
 copy_inputs () {
-    while read -r inputurls; do
-         ciop-log INFO "ciop-copy -f -o $SRCDIR $inputurls"
-         ciop-copy -f -o $SRCDIR $inputurls
+    while read -r url; do
+         copy $url $SRCDIR || exit $ERR_COPY
     done
 }
 
@@ -58,14 +72,14 @@ copy_inputs
 for type in $(ls -1 $SRCDIR | cut -d_ -f2 | sort -u); do
     for year in $(ls -1 $SRCDIR | cut -d_ -f3 | sort -u); do
         ofile=$DSTDIR/GS_${type}_${year}.tiff
-        ciop-log INFO "MERGE merging Growth Season $type result"
+        loginfo "MERGE merging Growth Season $type result"
         gdal_merge.py $SRCDIR/GS_${type}_${year}_*.tiff -o $ofile
     done
     ciop-publish $DSTDIR/GS_${type}_*.tiff
-    ciop-log INFO "MERGE Done with Growth Season $type"
+    loginfo "MERGE Done with Growth Season $type"
 done
 
 ls -lh $DSTDIR
-ciop-log INFO "MERGE Done"
+loginfo "MERGE Done"
 
 cleanExit 0

@@ -18,21 +18,20 @@ function cleanExit ()
      $ERR_GDAL)     msg="Graph processing of job ${JOBNAME} failed (exit code $res)";;
      *)             msg="Unknown error";;
    esac
-   [ "$retval" != "0" ] && ciop-log "ERROR" "Error $retval - $msg, processing aborted" || ciop-log "INFO" "$msg"
+   [ "$retval" != "0" ] && logerror "Error $retval - $msg, processing aborted" || loginfo "$msg"
    exit $retval
 }
 trap cleanExit EXIT
 
-# case "$HOSTNAME" in
 case "$USER" in
-    # sensyf-* )
     mapred )
         # source the ciop functions (e.g. ciop-log)
         # The file is /usr/lib/ciop/libexec/ciop-functions.sh
         source ${ciop_job_include}
         BINDIR=/application/growingseason/bin
-        loginfo () { ciop-log INFO "$@"; }
-        copy () {
+        function loginfo () { ciop-log INFO "$@"; }
+        function logerror () { ciop-log ERROR "$@"; }
+        function copy () {
             url="$1"
             dst="$2"
             loginfo "Copying <$url> to <$dst>"
@@ -45,6 +44,7 @@ case "$USER" in
         BINDIR=./bin/
         # function ciop-log { echo -- CIOP-LOG "$@"; }
         function loginfo () { echo "INFO: $@"; }
+        function logerror () { echo " ERROR: $@"; }
         function ciop-publish { echo -- CIOP-PUBLISH "$@"; }
         copy () {
             url="$1"
@@ -53,26 +53,14 @@ case "$USER" in
             ln -s "$url" "$dst/."
         }
 
-        # _mode=${1-average}
-        # _startdate=${2-2000-01-01}
-        # _enddate=${3-2010-12-31}
-        # _othreshold=${4-0.7}
-        # _ethreshold=${5-0.9}
         _tilesize=${6-1024}
         function ciop-getparam { echo $(eval echo '$'"_$1"); }
         ;;
 esac
 
 interp=/usr/bin/python
-# script=${BINDIR}/toy_tile.py
 script=${BINDIR}/sensyf-tile
 
-# mode=$(ciop-getparam mode)
-# othreshold=$(ciop-getparam othreshold)
-# ethreshold=$(ciop-getparam ethreshold)
-# ciop-log INFO "mode: $mode"
-# ciop-log INFO "othreshold: $othreshold"
-# ciop-log INFO "ethreshold: $ethreshold"
 
 tilesize=$(ciop-getparam tilesize)
 loginfo "tilesize: $tilesize"
@@ -89,8 +77,8 @@ mkdir -p $DSTDIR
 rm -rf $DSTDIR/*
 
 copy_inputs () {
-    while read -r inputurl; do
-         copy $inputurl $SRCDIR || exit $ERR_COPY
+    while read -r url; do
+         copy $url $SRCDIR || exit $ERR_COPY
     done
 }
 

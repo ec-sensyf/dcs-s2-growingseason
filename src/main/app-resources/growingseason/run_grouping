@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# define the exit codes
+SUCCESS=0
+ERR_NOINPUT=1
+ERR_NOPARAMS=2
+ERR_GDAL=4
+ERR_COPY=5
+
 # add a trap to exit gracefully
 function cleanExit ()
 {
@@ -11,7 +18,7 @@ function cleanExit ()
      $ERR_GDAL)     msg="Graph processing of job ${JOBNAME} failed (exit code $res)";;
      *)             msg="Unknown error";;
    esac
-   [ "$retval" != "0" ] && ciop-log "ERROR" "Error $retval - $msg, processing aborted" || ciop-log "INFO" "$msg"
+   [ "$retval" != "0" ] && logerror "Error $retval - $msg, processing aborted" || loginfo "$msg"
    exit $retval
 }
 trap cleanExit EXIT
@@ -22,15 +29,30 @@ case "$USER" in
         # The file is /usr/lib/ciop/libexec/ciop-functions.sh
         source ${ciop_job_include}
         BINDIR=/application/growingseason/bin
-        ciop-log INFO "Running in cluster"
+        function loginfo () { ciop-log INFO "$@"; }
+        function logerror () { ciop-log ERROR "$@"; }
+        function copy () {
+            url="$1"
+            dst="$2"
+            loginfo "Copying <$url> to <$dst>"
+            ciop-copy -r 3 -f -O $dst $url
+        }
+        loginfo "Running in cluster"
         ;;
     * )
         # create aliases for ciop routines
         TMPDIR=${TMPDIR-$(pwd)}
         BINDIR=.
-        function ciop-log { echo -- CIOP-LOG "$@"; }
-        # function ciop-copy { echo -- CIOP-COPY "$@"; ln -s "$6" "$5/."; }
+        function loginfo () { echo "INFO: $@"; }
+        function logerror () { echo " ERROR: $@"; }
         function ciop-publish { echo -- CIOP-PUBLISH "$@"; }
+        copy () {
+            url="$1"
+            dst="$2"
+            loginfo "Copying (linking) <$url> to <$dst>"
+            ln -s "$url" "$dst/."
+        }
+
         _mode=${1-average}
         _startdate=${2-2000-01-01}
         _enddate=${3-2010-12-31}
@@ -40,22 +62,6 @@ case "$USER" in
         ;;
 esac
 
-interp=/usr/bin/python
-script=${BINDIR}/toy_group.py
-
-mode=$(ciop-getparam mode)
-# othreshold=$(ciop-getparam othreshold)
-# ethreshold=$(ciop-getparam ethreshold)
-# ciop-log INFO "mode: $mode"
-# ciop-log INFO "othreshold: $othreshold"
-# ciop-log INFO "ethreshold: $ethreshold"
-
-# define the exit codes
-SUCCESS=0
-ERR_NOINPUT=1
-ERR_NOPARAMS=2
-ERR_GDAL=4
-ERR_COPY=5
 
 # create the input directory
 SRCDIR=$TMPDIR/inputs/
@@ -69,15 +75,13 @@ ciop-log INFO "*** running grouping ***"
 
 cd $SRCDIR
 while read -r url; do
-    ciop-copy -r 3 -f -U -O $TMPDIR $url;
-    tar zxvf $TMPDIR/$(basename $url);
+    copy $url $TMPDIR || exit $ERR_COPY
+    tar zxvf $TMPDIR/$(basename $url)
 done
 
 
 # python toy_tile.py srcdir dstdir
-ciop-log INFO 'grouping  ...'
-# echo $interp $script $DSTDIR
-# $interp $script $DSTDIR                 # > /dev/null 2>&1
+loginfo 'grouping  ...'
 
 for tile in *; do
     tar zcvf $DSTDIR/$tile.tar.gz $tile
