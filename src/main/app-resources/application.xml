@@ -1,25 +1,13 @@
 <application id="growingseason">
   <jobTemplates>
-    <jobTemplate id="jt_echo">
-      <streamingExecutable>/application/growingseason/bin/py_echo</streamingExecutable>
-      <defaultParameters>
-	<parameter id="toyparam">FirstParam</parameter>
-	<parameter id="toy-parameter">SecondParamDefault</parameter>
-	<parameter id="mode">all</parameter>
-	<parameter id="startdate">1900-07-04</parameter>
-	<parameter id="enddate">2025-08-03</parameter>
-	<parameter id="othreshold">0.7</parameter>
-	<parameter id="ethreshold">0.9</parameter>
-      </defaultParameters>
-      <defaultJobconf>
-        <property id="mapred.task.timeout">3600000</property> <!-- in milliseconds -->
-	<property id="ciop.job.max.tasks">1</property>
-      </defaultJobconf>
-    </jobTemplate>
     <jobTemplate id="jt_mapped_tiling">
       <streamingExecutable>/application/growingseason/run_map_tiling</streamingExecutable>
       <defaultParameters>
-	<parameter id="tilesize">1024</parameter>
+	<parameter id="tilesize"
+	        scope="runtime"
+		abstract="Linear size of the tiles produced in this stage and
+		          processed in subsequent stages"
+		title="Tile size (1024)">1024</parameter>
       </defaultParameters>
       <defaultJobconf>
         <property id="mapred.task.timeout">3600000</property> <!-- in milliseconds -->
@@ -36,27 +24,48 @@
 	<property id="ciop.job.max.tasks">1</property>	<!-- reducer -->
       </defaultJobconf>
     </jobTemplate>
-    <jobTemplate id="jt_s2job">
-      <streamingExecutable>/application/growingseason/run_s2wf</streamingExecutable>
-      <defaultParameters>
-	<parameter id="mode">all</parameter>
-	<parameter id="startdate">1925-07-04</parameter>
-	<parameter id="enddate">2025-08-03</parameter>
-	<parameter id="othreshold">0.7</parameter>
-	<parameter id="ethreshold">0.9</parameter>
-      </defaultParameters>
-      <defaultJobconf>
-        <property id="mapred.task.timeout">3600000</property> <!-- in milliseconds -->
-	<property id="ciop.job.max.tasks">10</property>
-      </defaultJobconf>
-    </jobTemplate>
     <jobTemplate id="jt_s2pyjob">
       <streamingExecutable>/application/growingseason/bin/s2_processtile.py</streamingExecutable>
       <defaultParameters>
 	<parameter id="mode">all</parameter>
-	<parameter id="startdate-onset">1925-07-04</parameter>
-	<parameter id="enddate-onset">2025-08-03</parameter>
-	<parameter id="othreshold">0.7</parameter>
+	<parameter id="startdate-onset"
+		scope="runtime"
+		abstract="The year and date which defines the start of the growing season
+		      for the purpose of growing season onset calculations.
+		      Format is YYYY-MM-DD."
+		title="Starting date for onset calculation (1925-07-04)">1925-07-04</parameter>
+	<parameter id="enddate-onset"
+		scope="runtime"
+		abstract="The year and date which defines the end of the growing season
+		      for the purpose of growing season onset calculations.
+		      Format is YYYY-MM-DD."
+		title="Ending date for onset calculation (2025-08-03)">2025-08-03</parameter>
+	<parameter id="startdate-end"
+		scope="runtime"
+		abstract="The year and date which defines the start of the growing season
+		      for the purpose of growing season end calculations.
+		      Format is YYYY-MM-DD."
+		title="Starting date for end calculation (1925-07-04)">1925-07-04</parameter>
+	<parameter id="enddate-end"
+		scope="runtime"
+		abstract="The year and date which defines the end of the growing season
+		      for the purpose of growing season end calculations.
+		      Format is YYYY-MM-DD."
+		title="Ending date for end calculation (2025-08-03)">2025-08-03</parameter>
+	<parameter id="othreshold"
+		scope="runtime"
+		abstract="Growing Season Onset is defined as whenever the daily
+		    NDVI value exceeds the average over the growing season
+		    (defined by startdate-onset and enddate-onset) multiplied
+		    by this factor"
+		title="Threshold multiplier for onset calculation (0.7)">0.7</parameter>
+	<parameter id="ethreshold"
+		scope="runtime"
+		abstract="Growing Season End is defined as whenever the daily
+		    NDVI value falls below the average over the growing season
+		    (defined by startdate-end and enddate-end) multiplied
+		    by this factor"
+		title="Threshold multiplier for end calculation (0.9)">0.9</parameter>
 	<parameter id="ethreshold">0.9</parameter>
       </defaultParameters>
       <defaultJobconf>
@@ -78,8 +87,26 @@
 	<property id="ciop.job.max.tasks">10</property>	<!-- reducer -->
       </defaultJobconf>
     </jobTemplate>
+    <jobTemplate id="jt_echo">
+      <streamingExecutable>/application/growingseason/bin/py_echo</streamingExecutable>
+      <defaultParameters>
+	<parameter id="toyparam">FirstParam</parameter>
+	<parameter id="toy-parameter">SecondParamDefault</parameter>
+	<parameter id="mode">all</parameter>
+	<parameter id="startdate">1900-07-04</parameter>
+	<parameter id="enddate">2025-08-03</parameter>
+	<parameter id="othreshold">0.7</parameter>
+	<parameter id="ethreshold">0.9</parameter>
+      </defaultParameters>
+      <defaultJobconf>
+        <property id="mapred.task.timeout">3600000</property> <!-- in milliseconds -->
+	<property id="ciop.job.max.tasks">1</property>
+      </defaultJobconf>
+    </jobTemplate>
   </jobTemplates>
- <workflow id="wf_growingseason">
+ <workflow id="wf_growingseason"
+	title="Arctic/Alpine Growing Season"
+	abstract="OGC Web Processing Service for Arctic/Alpine Growing Season">
     <workflowVersion>1.0</workflowVersion>
     <node id="maptiling">
       <job id="jt_mapped_tiling"/>
@@ -104,8 +131,10 @@
       </sources>
       <parameters>
 	<parameter id="mode">all</parameter>
-	<parameter id="startdate">1945-07-04</parameter>
-	<parameter id="enddate">2045-08-03</parameter>
+	<parameter id="startdate-onset">1925-07-04</parameter>
+	<parameter id="enddate-onset">2025-08-03</parameter>
+	<parameter id="startdate-end">1925-07-04</parameter>
+	<parameter id="enddate-end">2025-08-03</parameter>
 	<parameter id="othreshold">0.7</parameter>
 	<parameter id="ethreshold">0.9</parameter>
       </parameters>
