@@ -74,6 +74,9 @@ def colorize(fname, dstdir):
 
     dst_ds = driver.CreateCopy(fname, vrt, 0)
 
+    for tag, val in src_ds.GetMetadata().iteritems():
+        dst_ds.SetMetadataItem(tag, val)
+
     dst_rb = dst_ds.GetRasterBand(1)
     src_rb = src_ds.GetRasterBand(1)
     dst_rb.WriteArray(src_rb.ReadAsArray())

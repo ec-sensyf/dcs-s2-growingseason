@@ -330,8 +330,8 @@ def above(datadir, outputdir, thr_scale, avg_fname):
         if year != lastyear:
             if onset is not None:
                 # save data
-                GSO_description = """Growth season onset for the year {year},
-computed using {nfiles} files.
+                GSO_description = """Arctic/Alpine Growing Season Onset.
+Computed for the year {year}, using {nfiles} files.
 The growing season onset is defined as the day when the daily NDVI value
 exceeds {thr} times an average over the peak period.
 Files:\n  {fn}""".format(year=2000+year, nfiles=len(filelist),
@@ -421,8 +421,10 @@ def peak(datadir, outputdir):
         if year != lastyear:
             if peak is not None:
                 # save data
-                GSP_description = """Growth season peak for the year {year},
-computed using {nfiles} files.
+                GSP_description = """Arctic/Alpine Growing Season Peak.
+Computed for the year {year}, using {nfiles} files.
+The growing season peak is simply the day when the daily NDVI attains its maximum value
+over the entire growing season.
 Files:\n  {fn}""".format(year=2000+year, nfiles=len(filelist), fn="\n  ".join(filelist))
                 save_peak(ds, outputdir, peak, lastyear, mask=mask, description=GSP_description)
                 # pk.append(peak)
@@ -520,10 +522,10 @@ def below(datadir, outputdir, thr_scale, date_start, date_end):
         if year != lastyear:
             if gs_end is not None:
                 # Done
-                GSE_description = """Growth season end for the year {year},
-computed using {nfiles} files.
-The growing season is considered to peak between the dates {ms:02}-{ds:02} and {me:02}-{de:02} (MM-DD),
-and defined to end when the daily NDVI value sinks below {thr} times the average over the peak period.
+                GSE_description = """Arctic/Alpine Growing Season End.
+Computed for the year {year}, using {nfiles} files.
+The growing season has its peak period between the dates {ms:02}-{ds:02} and {me:02}-{de:02} (MM-DD),
+and is defined to end when the daily NDVI value sinks below {thr} times the average over the peak period.
 Files:\n  {fn}""".format(year=2000+lastyear, nfiles=len(filelist), fn="\n  ".join(filelist),
                 thr=thr_scale, ms=ms, ds=ds, me=me, de=de)
                 save_end(src_ds, outputdir, gs_end, lastyear, mask=mask, description=GSE_description)
