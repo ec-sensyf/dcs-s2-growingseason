@@ -30,13 +30,21 @@ permadir = '/application/growingseason/permanent'
 if env['USER'] == 'mapred':
     import cioppy
     ciop = cioppy.Cioppy()
-    def LOGINFO(x): ciop.log("INFO", "Cp/ECHO:" + x)
+    def LOGINFO(x): ciop.log("INFO", "CP:" + x)
+    def LOGERROR(x): ciop.log("ERROR", "CP:" + x)
     LOGINFO(" Using Cioppy tools")
-    copy = lambda pths, dst: ciop.copy(pths, dst, extract=False)
+    def copy(url, dst):
+        LOGINFO("Copying <{0}> to <{1}>".format(url, dst))
+        ciop.copy(url, dst, extract=False)
     getparam = ciop.getparam
-    publish = ciop.publish
+    def publish(pths):
+        if isinstance(pths, basestring):
+            pths = [pths]
+        for pth in pths:
+            LOGINFO("Publishing path " + pth)
+            ciop.publish(pth, metalink=False)
 else:
-    def LOGINFO(x): print("[INFO]ECHO:" + x)
+    def LOGINFO(x): print("[INFO]CP:" + x)
     params = {
         'mode' : 'all',
         'startdate' : '2000-07-02',
@@ -49,6 +57,7 @@ else:
         if isinstance(pths, basestring):
             pths = [pths]
         for pth in pths:
+            LOGINFO("Copying <{0}> to <{1}>".format(pth, dst))
             shutil.copy(pth, dst)
     def publish(pths, **kwargs):
         if 'recursive' in kwargs:
@@ -59,14 +68,20 @@ else:
             LOGINFO("Publishing path " + pth)
 
 def copy_and_unpack(url, dst):
-    fname = os.path.basename(url)
-    path = os.path.join(dst, fname)
-    copy(url, dst)
-    tf = tarfile.open(path, 'r')
-    tile = tf.next().name       # Subdir is first in tarfile
-    tf.extractall(path=dst)
-    tf.close()
-    os.unlink(path)
+    def _copy(url, dst):
+        fname = os.path.basename(url)
+        path = os.path.join(dst, fname)
+        copy(url, dst)
+        return path
+    flist = _copy(url, dst)
+    for url in open(flist):
+        path = _copy(url.rstrip(), dst)
+        tf = tarfile.open(path, 'r')
+        tile = tf.next().name       # Subdir is first in tarfile
+        tf.extractall(path=dst)
+        tf.close()
+        os.unlink(path)
+    os.unlink(flist)
     return tile
 
 
@@ -563,6 +578,7 @@ def cluster_main():
     LOGINFO("Publishing results for tiles " + ", ".join(tiles))
     # publish(dstdir, recursive=True)
     publish(glob(dstdir + '/*.tiff'))
+    LOGINFO("Published results for tiles " + ", ".join(tiles))
 
 def cmdline_main(args):
 
@@ -603,7 +619,7 @@ def cmdline_main(args):
 
 if __name__ == '__main__':
 
-    if env['USER'] != 'mapred':
+    if False: # env['USER'] != 'mapred':
         # Running from command-line
         cmdline_main(sys.argv[1:])
 

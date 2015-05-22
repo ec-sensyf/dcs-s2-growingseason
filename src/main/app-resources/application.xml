@@ -15,7 +15,7 @@
       </defaultJobconf>
     </jobTemplate>
     <jobTemplate id="jt_grouping">
-      <streamingExecutable>/application/growingseason/run_grouping</streamingExecutable>
+      <streamingExecutable>/application/growingseason/bin/grouping.py</streamingExecutable>
       <defaultParameters>
 	<parameter id="tilesize">1024</parameter>
       </defaultParameters>
@@ -131,12 +131,10 @@
       </sources>
       <parameters>
 	<parameter id="mode">all</parameter>
-	<parameter id="startdate-onset">1925-07-04</parameter>
-	<parameter id="enddate-onset">2025-08-03</parameter>
-	<parameter id="startdate-end">1925-07-04</parameter>
-	<parameter id="enddate-end">2025-08-03</parameter>
-	<parameter id="othreshold">0.7</parameter>
-	<parameter id="ethreshold">0.9</parameter>
+	<parameter id="startdate-end">1930-07-04</parameter>
+	<parameter id="enddate-end">2030-08-03</parameter>
+	<parameter id="othreshold">0.71</parameter>
+	<parameter id="ethreshold">0.91</parameter>
       </parameters>
     </node>
     <node id="merge">
