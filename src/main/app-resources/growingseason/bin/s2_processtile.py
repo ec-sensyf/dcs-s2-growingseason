@@ -24,7 +24,6 @@ gdal.UseExceptions()
 
 mask_fname = 'maske_sval.tiff'
 
-permadir = '/application/growingseason/permanent'
 #permadir = './permanent'
 
 if env['USER'] == 'mapred':
@@ -43,6 +42,7 @@ if env['USER'] == 'mapred':
         for pth in pths:
             LOGINFO("Publishing path " + pth)
             ciop.publish(pth, metalink=False)
+    permadir = '/application/growingseason/permanent'
 else:
     def LOGINFO(x): print("[INFO]CP:" + x)
     params = {
@@ -66,6 +66,7 @@ else:
             pths = [pths]
         for pth in pths:
             LOGINFO("Publishing path " + pth)
+    permadir = os.path.join(env['HOME'], 'src/s2/growingseason/permanent')
 
 def copy_and_unpack(url, dst):
     def _copy(url, dst):
@@ -177,6 +178,9 @@ def average(datadir, outputdir, avg_fname, date_start, date_end):
     ndat = np.zeros(mask.shape, dtype=np.int16)
     data = np.zeros(mask.shape, dtype=np.float64)
 
+    inputs = []
+    ymin = ye
+    ymax = ys
     for filename in os.listdir(datadir):
         m = pat.search(filename)
         if not m: continue
@@ -184,6 +188,9 @@ def average(datadir, outputdir, avg_fname, date_start, date_end):
         if ynum+2000 < ys or ynum+2000 > ye: continue
         date = dt.date(ynum+2000, 1, 1) + dt.timedelta(dnum-1)
         if date < dt.date(ynum+2000, ms, ds) or date > dt.date(ynum+2000, me, de): continue
+        inputs.append(filename)
+        ymin = min(ymin, ynum+2000)
+        ymax = max(ymax, ynum+2000)
 
         dds = gdal.Open(os.path.join(datadir, filename))
         ddd = dds.ReadAsArray()
@@ -192,7 +199,16 @@ def average(datadir, outputdir, avg_fname, date_start, date_end):
         ndat[xy] += 1
         LOGINFO("read file " + filename)
 
-    avg = np.where(mask == 1, data/ndat, np.nan)
+    avg = np.where((mask == 1) & (ndat != 0), data/ndat, np.nan)
+    inputs.sort()
+
+    image_descr = """Average NDVI computed over {nfiles} files.
+The files span the years {ymin} to {ymax},
+and in each year the dates from {ms:02}-{ds:02} to {me:02}-{de:02} (MM-DD).
+
+File names:
+  {flist}""".format(nfiles=len(inputs), ymin=ymin, ymax=ymax,
+        ms=ms, ds=ds, me=me, de=de, flist="\n  ".join(inputs))
 
     # Create file with average
     ysize, xsize = avg.shape
@@ -200,6 +216,7 @@ def average(datadir, outputdir, avg_fname, date_start, date_end):
     out = driver.Create(os.path.join(outputdir, avg_fname), xsize, ysize, 1, GDT_Float32)
     out.SetGeoTransform(dds.GetGeoTransform())
     out.SetProjection(dds.GetProjectionRef())
+    out.SetMetadataItem('TIFFTAG_IMAGEDESCRIPTION', image_descr)
     out.GetRasterBand(1).WriteArray(avg.astype(np.float32))
     out = None                # Close and flush file
     return 0
@@ -218,9 +235,10 @@ def save_product(ds, outputdir, data, year, mask, fmt, prod_name, prod_descripti
 
     out.SetGeoTransform(ds.GetGeoTransform())
     out.SetProjection(ds.GetProjectionRef())
+    out.SetMetadataItem('TIFFTAG_IMAGEDESCRIPTION', prod_description)
     # out.SetMetadataItem('band_names', prod_description)
     rb = out.GetRasterBand(1)
-    rb.SetDescription(prod_description)
+    # rb.SetDescription(prod_description)
     rb.WriteArray(encode(data))
     out = None                  # Close and flush file
 
@@ -234,20 +252,17 @@ def save_product(ds, outputdir, data, year, mask, fmt, prod_name, prod_descripti
     # dh.writeHdr(prod_name + '.hdr', hdr)
     LOGINFO("wrote " + prod_name)
 
-def save_onset(ds, outputdir, onset, year, mask=None, fmt='GTiff'):
+def save_onset(ds, outputdir, onset, year, mask=None, fmt='GTiff', description=''):
     GSO_name = os.path.join(outputdir, 'GS_onset_{0}'.format(2000+year))
-    GSO_description = 'Growth season onset'
-    save_product(ds, outputdir, onset, year, mask, fmt, GSO_name, GSO_description)
+    save_product(ds, outputdir, onset, year, mask, fmt, GSO_name, description)
 
-def save_peak(ds, outputdir, peak, year, mask=None, fmt='GTiff'):
+def save_peak(ds, outputdir, peak, year, mask=None, fmt='GTiff', description=''):
     GSP_name = os.path.join(outputdir, 'GS_peak_{0}'.format(2000+year))
-    GSP_description = 'Growth season peak'
-    save_product(ds, outputdir, peak, year, mask, fmt, GSP_name, GSP_description)
+    save_product(ds, outputdir, peak, year, mask, fmt, GSP_name, description)
 
-def save_end(ds, outputdir, end, year, mask=None, fmt='GTiff'):
+def save_end(ds, outputdir, end, year, mask=None, fmt='GTiff', description=''):
     GSE_name = os.path.join(outputdir, 'GS_end_{0}'.format(2000+year))
-    GSE_description = 'Growth season end'
-    save_product(ds, outputdir, end, year, mask, fmt, GSE_name, GSE_description)
+    save_product(ds, outputdir, end, year, mask, fmt, GSE_name, description)
 
 def GS_avgpeak(avg_fname):
 
@@ -273,6 +288,7 @@ def above(datadir, outputdir, thr_scale, avg_fname):
 
     pat = re.compile(r'ndvi(\d+)_(\d+).tiff')
 
+    files_used = []
     for filename in os.listdir(datadir):
         m = pat.search(filename)
         if m: break
@@ -289,6 +305,7 @@ def above(datadir, outputdir, thr_scale, avg_fname):
     # hdr, avg_peak = GS_avgpeak(datadir)
     ds, avg_peak = GS_avgpeak(os.path.join(outputdir, avg_fname))
 
+    avg_descr = ds.GetMetadataItem('TIFFTAG_IMAGEDESCRIPTION')
     LOGINFO("Got avg_peak with shape {0} and dtype {1}".format(avg_peak.shape, avg_peak.dtype))
     thr = thr_scale * avg_peak
 
@@ -300,7 +317,8 @@ def above(datadir, outputdir, thr_scale, avg_fname):
 
     lastyear = -1
     onset = None
-    oset = []
+    # oset = []
+    filelist = []
     for fn in files:
         try:
             year, dnum = map(int, pat.match(fn).groups())
@@ -312,8 +330,16 @@ def above(datadir, outputdir, thr_scale, avg_fname):
         if year != lastyear:
             if onset is not None:
                 # save data
-                save_onset(ds, outputdir, onset, lastyear, mask=mask)
-                oset.append(onset)
+                GSO_description = """Growth season onset for the year {year},
+computed using {nfiles} files.
+The growing season onset is defined as the day when the daily NDVI value
+exceeds {thr} times an average over the peak period.
+Files:\n  {fn}""".format(year=2000+year, nfiles=len(filelist),
+                fn="\n  ".join(filelist), thr=thr_scale)
+                save_onset(ds, outputdir, onset, lastyear, mask=mask,
+                    description=GSO_description + '\n\n' + avg_descr)
+                # oset.append(onset)
+                filelist = []
 
             # onset = np.zeros(data.shape) + np.nan
             lastdata = None
@@ -324,6 +350,7 @@ def above(datadir, outputdir, thr_scale, avg_fname):
         # hdr, data = dh.read_envi(datadir + fn)
         ds = gdal.Open(os.path.join(datadir, fn), GA_ReadOnly)
         data = ds.ReadAsArray()
+        filelist.append(fn)
         # if ds.GetProjectionRef() != proj \
         if ds.GetGeoTransform() != tran \
            or data.shape != mask.shape:
@@ -345,7 +372,14 @@ def above(datadir, outputdir, thr_scale, avg_fname):
         lastdata = data
 
     # Done
-    save_onset(ds, outputdir, onset, year, mask=mask)
+    GSO_description = """Growth season onset for the year {year},
+computed using {nfiles} files.
+The growing season onset is defined as the day when the daily NDVI value
+exceeds {thr} times an average over the peak period.
+Files:\n  {fn}""".format(year=2000+year, nfiles=len(filelist),
+                    fn="\n  ".join(filelist), thr=thr_scale)
+    save_onset(ds, outputdir, onset, year, mask=mask,
+               description=GSO_description + '\n\n' + avg_descr)
 
     return 0
 
@@ -374,7 +408,8 @@ def peak(datadir, outputdir):
 
     lastyear = -1
     peak = None
-    pk = []
+    # pk = []
+    filelist = []
     for fn in files:
         try:
             year, dnum = map(int, pat.match(fn).groups())
@@ -386,14 +421,19 @@ def peak(datadir, outputdir):
         if year != lastyear:
             if peak is not None:
                 # save data
-                save_peak(ds, outputdir, peak, lastyear, mask=mask)
-                pk.append(peak)
+                GSP_description = """Growth season peak for the year {year},
+computed using {nfiles} files.
+Files:\n  {fn}""".format(year=2000+year, nfiles=len(filelist), fn="\n  ".join(filelist))
+                save_peak(ds, outputdir, peak, lastyear, mask=mask, description=GSP_description)
+                # pk.append(peak)
+                filelist = []
 
             # peak = np.zeros(data.shape) + np.nan
             peakdata = None
 
         # Here, lastdata does not exist if this is first data set in the year
         lastyear = year
+        filelist.append(fn)
 
         # hdr, data = dh.read_envi(datadir + fn)
         ds = gdal.Open(os.path.join(datadir, fn), GA_ReadOnly)
@@ -417,7 +457,10 @@ def peak(datadir, outputdir):
         # lastdata = data
 
     # Done
-    save_peak(ds, outputdir, peak, year, mask=mask)
+    GSP_description = """Growth season peak for the year {year},
+computed using {nfiles} files.
+Files:\n  {fn}""".format(year=2000+year, nfiles=len(filelist), fn="\n  ".join(filelist))
+    save_peak(ds, outputdir, peak, year, mask=mask, description=GSP_description)
 
     return 0
 
@@ -439,8 +482,8 @@ def below(datadir, outputdir, thr_scale, date_start, date_end):
     dts = time.strptime(date_start, '%Y-%m-%d')
     dte = time.strptime(date_end, '%Y-%m-%d')
     ys, ye = dts.tm_year, dte.tm_year
-    # ms, me = dts.tm_mon,  dte.tm_mon
-    # ds, de = dts.tm_mday, dte.tm_mday
+    ms, me = dts.tm_mon,  dte.tm_mon
+    ds, de = dts.tm_mday, dte.tm_mday
     dstart, dend = dts.tm_yday, dte.tm_yday
 
     pat = re.compile(r'^ndvi(\d+)_(\d+).tiff')
@@ -462,6 +505,7 @@ def below(datadir, outputdir, thr_scale, date_start, date_end):
     lastyear = -1
     gs_end = None
     averaging = 1
+    filelist=[]
 
     for fn in files:
         try:
@@ -476,7 +520,14 @@ def below(datadir, outputdir, thr_scale, date_start, date_end):
         if year != lastyear:
             if gs_end is not None:
                 # Done
-                save_end(ds, outputdir, gs_end, lastyear, mask=mask)
+                GSE_description = """Growth season end for the year {year},
+computed using {nfiles} files.
+The growing season is considered to peak between the dates {ms:02}-{ds:02} and {me:02}-{de:02} (MM-DD),
+and defined to end when the daily NDVI value sinks below {thr} times the average over the peak period.
+Files:\n  {fn}""".format(year=2000+lastyear, nfiles=len(filelist), fn="\n  ".join(filelist),
+                thr=thr_scale, ms=ms, ds=ds, me=me, de=de)
+                save_end(src_ds, outputdir, gs_end, lastyear, mask=mask, description=GSE_description)
+                filelist=[]
             peak_sum = 0 * mask
             nsets = 0
             gs_end = mask.copy()
@@ -485,8 +536,9 @@ def below(datadir, outputdir, thr_scale, date_start, date_end):
 
         if dnum < dstart: continue
 
-        ds = gdal.Open(os.path.join(datadir, fn), GA_ReadOnly)
-        data = ds.ReadAsArray()
+        src_ds = gdal.Open(os.path.join(datadir, fn), GA_ReadOnly)
+        data = src_ds.ReadAsArray()
+        filelist.append(fn)
 
         if averaging:
             if dnum <= dend:
@@ -505,7 +557,13 @@ def below(datadir, outputdir, thr_scale, date_start, date_end):
 
 
     # Done
-    save_end(ds, outputdir, gs_end, year, mask=mask)
+    GSE_description = """Growth season end for the year {year},
+computed using {nfiles} files.
+The growing season is considered to peak between the dates {ms:02}-{ds:02} and {me:02}-{de:02} (MM-DD),
+and defined to end when the daily NDVI value sinks below {thr} times the average over the peak period.
+Files:\n  {fn}""".format(year=2000+year, nfiles=len(filelist), fn="\n  ".join(filelist),
+                thr=thr_scale, ms=ms, ds=ds, me=me, de=de)
+    save_end(src_ds, outputdir, gs_end, year, mask=mask, description=GSE_description)
 
     return 0
 
