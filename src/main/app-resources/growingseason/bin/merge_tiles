@@ -29,6 +29,7 @@ case "$USER" in
         # The file is /usr/lib/ciop/libexec/ciop-functions.sh
         source ${ciop_job_include}
         BINDIR=/application/growingseason/bin
+        PYTHON=/opt/anaconda/bin/python
         function loginfo () { ciop-log INFO "$@"; }
         function logerror () { ciop-log ERROR "$@"; }
         function copy () {
@@ -43,6 +44,7 @@ case "$USER" in
         # create aliases for ciop routines
         TMPDIR=${TMPDIR-.}
         BINDIR=./bin/
+        PYTHON=$(which python)
         function loginfo () { echo "INFO: $@"; }
         function logerror () { echo " ERROR: $@"; }
         function ciop-publish { echo -- CIOP-PUBLISH "$@"; }
@@ -73,7 +75,7 @@ for type in $(ls -1 $SRCDIR | cut -d_ -f2 | sort -u); do
     for year in $(ls -1 $SRCDIR | cut -d_ -f3 | sort -u); do
         ofile=$DSTDIR/GS_${type}_${year}.tiff
         loginfo "MERGE merging Growth Season $type result"
-        gdal_merge.py $SRCDIR/GS_${type}_${year}_*.tiff -o $ofile
+        $PYTHON $BINDIR/gdal_merge.py $SRCDIR/GS_${type}_${year}_*.tiff -o $ofile
     done
     ciop-publish $DSTDIR/GS_${type}_*.tiff
     loginfo "MERGE Done with Growth Season $type"
