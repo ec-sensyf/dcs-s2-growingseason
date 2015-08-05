@@ -1,0 +1,34 @@
+#!/bin/bash
+
+LOGINFO() { echo LOGINFO "$@"; }
+
+while read -r inputline; do
+
+    LOGINFO $inputline
+
+    infile="$inputline"
+    vrtfile="${infile%.tif*}.vrt"
+
+    gdal_translate -of vrt $infile $vrtfile
+
+    case "$infile" in
+        *onset*)
+            edscript='colorize_onset.ed'
+            ;;
+
+        *peak*)
+            edscript='colorize_peak.ed'
+            ;;
+
+        *end*)
+            edscript='colorize_end.ed'
+            ;;
+        *)
+            LOGERROR "File not recognized"
+            exit 1
+    esac
+
+    ed -s $vrtfile < $edscript
+    python apply_ctab.py "$vrtfile" "$infile"
+
+done
