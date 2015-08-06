@@ -58,7 +58,6 @@ case "$USER" in
         ;;
 esac
 
-interp=/usr/bin/python
 script=${BINDIR}/sensyf-tile
 
 
@@ -91,8 +90,8 @@ copy_inputs
 
 # python toy_tile.py srcdir dstdir
 loginfo 'tiling  ...'
-echo $interp $script $FLAGS $SRCDIR $DSTDIR
-$interp $script $FLAGS $SRCDIR $DSTDIR                 # > /dev/null 2>&1
+echo $script $FLAGS $SRCDIR $DSTDIR
+$script $FLAGS $SRCDIR $DSTDIR                 # > /dev/null 2>&1
 
 # Create one tar file per tile, containing all inputs for that tile
 
