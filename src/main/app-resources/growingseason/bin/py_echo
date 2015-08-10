@@ -7,8 +7,10 @@ if environ['USER'] == 'mapred':
     ciop = cioppy.Cioppy()
     def LOGINFO(x): ciop.log("INFO", "Cp/ECHO:" + x)
     LOGINFO(" Using Cioppy tools")
+    getparam = ciop.getparam
 else:
     def LOGINFO(x): print("[INFO]ECHO:" + x)
+    def getparam(x): print("param " + x + " not set in test mode")
 
 import sys
 LOGINFO("args: " + " ".join(sys.argv))
@@ -19,7 +21,7 @@ for k, v in environ.iteritems():
 
 # for param in ["toyparam", "toy-parameter"]:
 for param in ["mode", "startdate", "enddate", "othreshold", "ethreshold"]:
-    LOGINFO("{0}: {1}".format(param, ciop.getparam(param)))
+    LOGINFO("{0}: {1}".format(param, getparam(param)))
 
 
 for line in sys.stdin:

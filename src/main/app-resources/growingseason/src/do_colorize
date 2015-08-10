@@ -1,6 +1,7 @@
 #!/bin/bash
 
 LOGINFO() { echo LOGINFO "$@"; }
+LOGERROR() { echo LOGERROR "$@"; }
 
 while read -r inputline; do
 
@@ -25,7 +26,8 @@ while read -r inputline; do
             ;;
         *)
             LOGERROR "File not recognized"
-            exit 1
+            continue
+            ;;
     esac
 
     ed -s $vrtfile < $edscript

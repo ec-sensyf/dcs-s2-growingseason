@@ -23,24 +23,41 @@
 ;;    $ gdal_translate -of VRT byte_onset.tiff onset_nocolor.vrt
 ;;    $ gdal_translate -of VRT colored_onset.tiff onset_color.vrt
 ;;
-;;  - Isolate the difference
-;;    $ diff onset_nocolor.vrt onset_color.vrt > colorize_onset_vrt.patch
+;;  - Isolate the difference as an ed script
+;;    $ diff -e onset_nocolor.vrt onset_color.vrt > colorize_onset.ed
 ;;
-;;  - Edit the patch file.
+;;  - Edit the ed script
 ;;    Keep only two chunks:
-;;     - the chuck which changes ColorInterp and adds ColorTable
-;;     - the chunk which changes SourceFileName to tmp.tiff
+;;     1. the chunk which changes SourceFileName to tmp.tiff
+;;        - change the addressing line (e.g. '61c') to
+;;        /SourceFilename/c
+;;     2. the chuck which changes ColorInterp and adds ColorTable
+;;        - change the addressing line (e.g. '63c') to
+;;        /ColorInterp/c
+;;     After the final period, add two more lines containing
+;;     w
+;;     q
+;;     This is necessary for ed to save the results of the edit.
 ;;
 ;;  - from onset_nocolor.vrt, create onset.vrt by applying patch
 ;;    $ cp onset_nocolor.vrt onset.vrt
-;;    $ patch onset.vrt colorize_onset_vrt.patch
+;;    $ ed -s onset.vrt < colorize_onset.ed
 ;;
-;;    ### Test -- is it possible to apply colorize_onset_vrt.patch to
-;;    ### onset_nocolor.vrt generated on-the-fly to have colorization tied less
-;;    ### rigidly to a given data set?
+;;    Three ed scripts have been generated this way:
+;;            colorize_{onset,peak,end}.ed
+;;    These can be applied to a VRT file generated from an uncolored
+;;    GeoTIFF regardless of its projection and geometry.
 ;;
 ;;  - Colorize products
+;;    Using the modified VRT file to add colors to the GeoTIFF is done using the
+;;    python script 'apply_ctab.py'.
 ;;
+;;
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Production ;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;;  - Given ed scripts created as explained above, the shell script called
+;;    'do_colorize' reads names of GeoTIFF files from STDIN and adds color
+;;    tables to them, as long as their names contain 'onset', 'peak' or 'end'.
 ;;
 ;;
 
