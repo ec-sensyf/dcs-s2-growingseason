@@ -143,20 +143,5 @@
 	<source refid="wf:node">process_tiled</source>
       </sources>
     </node>
-    <node id="colorize">
-      <job id="jt_colorize"/>
-      <sources>
-	<source refid="wf:node">merge</source>
-      </sources>
-    </node>
-    <node id="end">
-      <job id="jt_echo"/>
-      <sources>
-	<source refid="wf:node">colorize</source>
-      </sources>
-      <parameters>
-	<parameter id="toy-parameter">SecondParamOverridden</parameter>
-      </parameters>
-    </node>
   </workflow>
 </application>
