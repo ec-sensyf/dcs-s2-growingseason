@@ -1,5 +1,5 @@
 /SourceFilename/c
-      <SourceFilename relativeToVRT="1">tmp.tiff</SourceFilename>
+      <SourceFilename relativeToVRT="0">tmp.tiff</SourceFilename>
 .
 /ColorInterp/c
     <ColorInterp>Palette</ColorInterp>

@@ -29,6 +29,7 @@ case "$USER" in
         # The file is /usr/lib/ciop/libexec/ciop-functions.sh
         source ${ciop_job_include}
         BINDIR=/application/growingseason/bin
+        export GDAL_DATA='/opt/anaconda/share/gdal'
         function loginfo () { ciop-log INFO "$@"; }
         function logerror () { ciop-log ERROR "$@"; }
         function copy () {

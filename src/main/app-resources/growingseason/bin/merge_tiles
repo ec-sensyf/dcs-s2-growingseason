@@ -28,6 +28,7 @@ case "$USER" in
         # source the ciop functions (e.g. ciop-log)
         # The file is /usr/lib/ciop/libexec/ciop-functions.sh
         source ${ciop_job_include}
+        export GDAL_DATA='/opt/anaconda/share/gdal'
         BINDIR=/application/growingseason/bin
         AUXDIR=/application/growingseason/src
         PYTHON=/opt/anaconda/bin/python
